@@ -1,0 +1,75 @@
+# PR-05 MLOps loop configuration.
+#
+# Local, offline, deterministic. No external services, no cloud, no Kubernetes.
+# This file only configures the PR-05 monitoring/packaging loop. It never
+# changes PR-03 forecast metrics or PR-04 decision metrics.
+
+mlflow:
+  tracking_uri: mlruns
+  forecast_experiment: demand_forecast_baseline
+  forecast_model_artifact: lightgbm_model
+  registered_model_name: demand_forecast
+  champion_alias: champion
+  # Tag used to make registration idempotent (skip if a version already maps
+  # to the same source run).
+  champion_run_tag: pr05_champion_run_id
+
+data:
+  synthetic_dir: data/synthetic/output
+  demand_history_file: demand_history.csv
+  parts_file: parts.csv
+
+artifacts:
+  root: artifacts/mlops
+
+evidently:
+  # Reference = first reference_fraction of distinct dates (sorted ascending).
+  # Current = the remaining dates. This is a strict temporal boundary split,
+  # never a random sample, so no current-period dates leak into the reference.
+  reference_fraction: 0.80
+  # Dataset-level drift is flagged when the share of drifted columns meets or
+  # exceeds this threshold (Evidently DriftedColumnsCount drift_share).
+  drift_share_threshold: 0.5
+  # Per-column drift test significance threshold (p-value based tests).
+  # Documented here for transparency; Evidently selects the stat test per
+  # column type automatically.
+  per_column_pvalue_threshold: 0.05
+  # Columns analysed for drift / quality. If omitted, sensible defaults are
+  # derived from the engineered feature table. Missing columns cause a clear
+  # failure rather than silent nonsense.
+  numerical_columns:
+    - quantity_demand
+    - lag_7
+    - lag_14
+    - lag_28
+    - rolling_mean_7
+    - rolling_mean_28
+    - rolling_std_28
+    - lead_time_days
+    - day_of_week
+    - month
+    - week_of_year
+  categorical_columns:
+    - category_id
+    - supplier_id
+    - is_weekend
+    - demand_pattern_intermittent
+
+champion_challenger:
+  # Both models come from the same PR-03 temporal split. The champion is the
+  # current/primary demand forecasting model (global LightGBM); the challenger
+  # is the StatsForecast statistical baseline.
+  champion_model: lightgbm
+  challenger_model: statsforecast
+  primary_metric: mae
+  primary_metric_direction: lower_is_better
+  # Relative improvement on the primary metric (percent) required to declare a
+  # winner. Below this the decision is "manual_review".
+  decision_threshold_pct: 5.0
+  # Existing PR-04 decision-intelligence summary used for synthetic supporting
+  # context only (never recomputed, never mutated).
+  pr04_summary_path: artifacts/decision/decision_summary.json
+
+bentoml:
+  enabled: true
+  model_name: invforge_demand_forecast

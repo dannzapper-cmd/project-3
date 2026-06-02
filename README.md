@@ -187,6 +187,7 @@ Raw snapshots are written to `data/raw/inventree/`; normalized CSVs are written 
 | `make dvc-repro` | Run DVC generate/validate stages |
 | `make train-ml` | Train PR-03 demand forecast baselines |
 | `make decision-intel` | Generate PR-04 inventory recommendations |
+| `make mlops-loop` | Run PR-05 local MLOps loop (drift, registry, champ/chal, BentoML) |
 | `make lint` | Run Ruff linter |
 | `make test` | Run pytest |
 | `make secrets-scan` | Run detect-secrets scan |

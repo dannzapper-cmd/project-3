@@ -126,8 +126,13 @@ baseline training behavior remains unchanged.
 
 ## Next Steps
 
-- **PR-05:** Evidently drift monitoring, model registry, BentoML serving
-- **PR-11 Senior Edition:** Foundation model benchmarks (Chronos-2/TimesFM) and TFT/N-BEATS comparison
+- **PR-05 (done):** Local Evidently drift monitoring, MLflow registry metadata,
+  champion/challenger comparison, and minimal BentoML packaging — see
+  [`docs/mlops.md`](../mlops.md). Kubernetes/cluster serving is intentionally
+  deferred.
+- **PR-10 / PR-11 Senior Edition:** Model serving/deployment packaging,
+  Kubernetes (k3s/Helm), and foundation model benchmarks (Chronos-2/TimesFM) and
+  TFT/N-BEATS comparison.
 
 ## How to Reproduce
 
