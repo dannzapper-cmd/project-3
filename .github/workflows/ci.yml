@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dev dependencies
+        run: uv sync --group dev
+
+      - name: Lint with Ruff
+        run: uv run ruff check .
+
+      - name: Generate synthetic data
+        run: |
+          uv run python data/synthetic/generate_inventory_data.py \
+            --output /tmp/synthetic-a --seed 42
+          uv run python data/synthetic/generate_inventory_data.py \
+            --output /tmp/synthetic-b --seed 42
+
+      - name: Verify deterministic output
+        run: |
+          diff -r /tmp/synthetic-a /tmp/synthetic-b
+          echo "Deterministic output verified."
+
+      - name: Prepare Docker Compose env
+        run: cp app/.env.example app/.env
+
+      - name: Validate Docker Compose config
+        run: docker compose -f app/docker-compose.yml --env-file app/.env config
+
+      - name: Secrets scan
+        run: uv run detect-secrets scan --baseline .secrets.baseline
