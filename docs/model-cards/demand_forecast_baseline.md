@@ -100,6 +100,10 @@ baseline training behavior remains unchanged.
 - Cost simulation compares against multiple baselines (`lag_7`,
   `moving_average_7`, `moving_average_28`, and StatsForecast when available)
   and reports low / medium / high understock-to-overstock sensitivity scenarios.
+- PR-04C adds deterministic policy grid search by `demand_pattern`, selecting
+  service level, safety-stock multiplier, and order-quantity multiplier on a
+  policy calibration window and reporting final metrics on a later policy
+  evaluation window.
 - Large synthetic cost reductions are flagged as sensitive to baseline and cost
   assumptions. They are not real-world savings claims.
 
@@ -111,6 +115,11 @@ baseline training behavior remains unchanged.
 - Interval calibration uses the existing temporal holdout split into calibration
   and evaluation slices; a future independent backtest would be required for a
   stronger out-of-sample coverage claim
+- Policy optimization uses a simplified daily policy-quantity approximation,
+  not a production inventory simulator with purchase orders, receipts, or stock
+  ledger dynamics
+- Cost reduction depends on synthetic demand, policy assumptions, and configured
+  understock/overstock scenarios
 - StatsForecast uses the first configured model column per pattern batch (not ensembled)
 - Short-history series may cause AutoETS failures on very small subsets (smoke tests use 90-day windows)
 - MLflow 3.x requires `MLFLOW_ALLOW_FILE_STORE=true` for local `mlruns/` tracking

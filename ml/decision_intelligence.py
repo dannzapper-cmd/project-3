@@ -84,6 +84,18 @@ DEFAULT_DECISION_CONFIG: dict[str, Any] = {
         "minimum_acceptable_coverage": 0.85,
         "minimum_evaluation_rows_for_guard": 1000,
     },
+    "policy_optimization": {
+        "enabled": True,
+        "optimization_level": "demand_pattern",
+        "calibration_fraction": 0.50,
+        "service_level_candidates": [0.85, 0.90, 0.95, 0.97],
+        "safety_stock_multiplier_candidates": [0.75, 1.0, 1.25, 1.5],
+        "order_quantity_multiplier_candidates": [0.5, 1.0, 1.5, 2.0],
+        "objective_scenarios": ["low", "medium", "high"],
+        "minimum_evaluation_rows_for_warning": 1000,
+        "large_reduction_warning_threshold_pct": 50.0,
+        "stock_increase_warning_threshold_pct": 25.0,
+    },
     "risk": {
         "low_threshold": 0.20,
         "high_threshold": 0.50,
@@ -203,6 +215,25 @@ def _interval_evaluation_split(
     return calibration_mask, evaluation_mask, periods
 
 
+def _policy_evaluation_split(
+    backtest: pd.DataFrame,
+    *,
+    calibration_fraction: float,
+) -> tuple[pd.Series, pd.Series, dict[str, str]]:
+    calibration_mask, evaluation_mask, periods = _interval_evaluation_split(
+        backtest,
+        calibration_fraction=calibration_fraction,
+    )
+    return (
+        calibration_mask,
+        evaluation_mask,
+        {
+            "policy_calibration_period": periods["calibration_period"],
+            "policy_evaluation_period": periods["evaluation_period"],
+        },
+    )
+
+
 def _apply_calibrated_intervals(
     backtest: pd.DataFrame,
     config: dict[str, Any],
@@ -298,6 +329,12 @@ def _apply_calibrated_intervals(
         )
 
     return calibrated, metrics
+
+
+def _prediction_checksum(backtest: pd.DataFrame) -> float:
+    """Stable checksum for verifying policy optimization does not alter forecasts."""
+
+    return float(np.round(backtest["prediction"].sum(), 10))
 
 
 def _select_newsvendor_forecast(
@@ -542,6 +579,460 @@ def _simulate_cost_metrics(
         "cost_reduction_pct": main["cost_reduction_vs_best_baseline_pct"],
         "lag_7_cost_reduction_pct": lag_7_reduction,
     }
+
+
+def _add_policy_inputs(
+    backtest: pd.DataFrame,
+    train_df: pd.DataFrame,
+    *,
+    order_cost: float,
+    holding_cost_rate: float,
+) -> pd.DataFrame:
+    policy_frame = backtest.copy()
+    demand_std = (
+        train_df.assign(part_id=train_df["part_id"].astype(str))
+        .groupby("part_id", observed=True)[TARGET_COLUMN]
+        .std(ddof=0)
+        .fillna(0.0)
+    )
+    policy_frame["policy_demand_std_daily"] = (
+        policy_frame["part_id"].map(demand_std).fillna(0.0)
+    )
+    policy_frame["policy_lead_time_days"] = (
+        pd.to_numeric(policy_frame["lead_time_days"], errors="coerce")
+        .fillna(1.0)
+        .clip(lower=1.0)
+    )
+    policy_frame["policy_annual_holding_cost_per_unit"] = (
+        policy_frame["unit_cost_nonnegative"] * holding_cost_rate
+    )
+    eoq_values: list[float] = []
+    for row in policy_frame.itertuples(index=False):
+        annual_demand = float(row.prediction) * 365.0
+        holding_cost = float(row.policy_annual_holding_cost_per_unit)
+        if annual_demand <= 0 or holding_cost <= 0:
+            eoq_values.append(0.0)
+            continue
+        eoq = calculate_eoq(annual_demand, order_cost, holding_cost)
+        eoq_values.append(0.0 if not np.isfinite(eoq) else eoq)
+    policy_frame["policy_eoq"] = eoq_values
+    return policy_frame
+
+
+def _policy_quantity(
+    frame: pd.DataFrame,
+    *,
+    service_level: float,
+    safety_stock_multiplier: float,
+    order_quantity_multiplier: float,
+) -> pd.Series:
+    z_score = service_level_to_z_score(service_level)
+    safety_stock = (
+        z_score
+        * frame["policy_demand_std_daily"].clip(lower=0.0)
+        * np.sqrt(frame["policy_lead_time_days"].clip(lower=1.0))
+        * safety_stock_multiplier
+    )
+    daily_safety_stock = safety_stock / frame["policy_lead_time_days"].clip(lower=1.0)
+    daily_order_quantity = (
+        frame["policy_eoq"].clip(lower=0.0) / 365.0 * order_quantity_multiplier
+    )
+    return (
+        frame["prediction"].clip(lower=0.0)
+        + daily_safety_stock
+        + daily_order_quantity
+    ).clip(lower=0.0)
+
+
+def _policy_params_key(params: dict[str, float]) -> tuple[float, float, float]:
+    return (
+        float(params["service_level"]),
+        float(params["safety_stock_multiplier"]),
+        float(params["order_quantity_multiplier"]),
+    )
+
+
+def _policy_cost_for_scenarios(
+    frame: pd.DataFrame,
+    policy_quantity: pd.Series,
+    scenario_ratios: dict[str, float],
+    scenario_names: list[str],
+) -> dict[str, float]:
+    costs: dict[str, float] = {}
+    for scenario in scenario_names:
+        ratio = float(scenario_ratios[scenario])
+        overstock = frame["overstock_cost_per_unit"]
+        understock = overstock * ratio
+        costs[scenario] = simulated_inventory_cost(
+            frame[TARGET_COLUMN],
+            policy_quantity,
+            understock,
+            overstock,
+        )
+    return costs
+
+
+def _mean_objective_cost(costs: dict[str, float], scenario_names: list[str]) -> float:
+    return float(np.mean([costs[name] for name in scenario_names]))
+
+
+def _optimize_policy_for_group(
+    group: pd.DataFrame,
+    *,
+    service_levels: list[float],
+    safety_multipliers: list[float],
+    order_multipliers: list[float],
+    scenario_ratios: dict[str, float],
+    objective_scenarios: list[str],
+) -> tuple[dict[str, float], dict[str, Any]]:
+    best_params: dict[str, float] | None = None
+    best_cost = float("inf")
+    best_scenario_costs: dict[str, float] = {}
+
+    for service_level in service_levels:
+        for safety_multiplier in safety_multipliers:
+            for order_multiplier in order_multipliers:
+                params = {
+                    "service_level": float(service_level),
+                    "safety_stock_multiplier": float(safety_multiplier),
+                    "order_quantity_multiplier": float(order_multiplier),
+                }
+                quantity = _policy_quantity(
+                    group,
+                    service_level=params["service_level"],
+                    safety_stock_multiplier=params["safety_stock_multiplier"],
+                    order_quantity_multiplier=params["order_quantity_multiplier"],
+                )
+                scenario_costs = _policy_cost_for_scenarios(
+                    group,
+                    quantity,
+                    scenario_ratios,
+                    objective_scenarios,
+                )
+                objective_cost = _mean_objective_cost(
+                    scenario_costs,
+                    objective_scenarios,
+                )
+                if (
+                    objective_cost < best_cost
+                    or (
+                        objective_cost == best_cost
+                        and best_params is not None
+                        and _policy_params_key(params) < _policy_params_key(best_params)
+                    )
+                    or best_params is None
+                ):
+                    best_params = params
+                    best_cost = objective_cost
+                    best_scenario_costs = scenario_costs
+
+    if best_params is None:
+        raise RuntimeError("Policy grid search had no candidate parameters")
+    return best_params, {
+        "objective_cost": best_cost,
+        "scenario_costs": best_scenario_costs,
+        "calibration_rows": int(len(group)),
+    }
+
+
+def _policy_total_costs_for_scenario(
+    frame: pd.DataFrame,
+    policy_columns: dict[str, str],
+    *,
+    ratio: float,
+) -> dict[str, float]:
+    overstock = frame["overstock_cost_per_unit"]
+    understock = overstock * float(ratio)
+    return {
+        policy: simulated_inventory_cost(
+            frame[TARGET_COLUMN],
+            frame[col],
+            understock,
+            overstock,
+        )
+        for policy, col in policy_columns.items()
+    }
+
+
+def _policy_evaluation_metrics(
+    evaluation: pd.DataFrame,
+    *,
+    sensitivity_ratios: dict[str, float],
+    baseline_policies: dict[str, str],
+) -> dict[str, Any]:
+    policy_columns = {
+        "fixed_formula_policy": "fixed_formula_policy_forecast",
+        "optimized_policy": "optimized_policy_forecast",
+        **baseline_policies,
+    }
+    scenarios: dict[str, Any] = {}
+    for scenario, ratio in sensitivity_ratios.items():
+        totals = _policy_total_costs_for_scenario(
+            evaluation,
+            policy_columns,
+            ratio=float(ratio),
+        )
+        optimized_total = totals["optimized_policy"]
+        fixed_total = totals["fixed_formula_policy"]
+        baseline_totals = {
+            name: value
+            for name, value in totals.items()
+            if name not in {"fixed_formula_policy", "optimized_policy"}
+        }
+        best_baseline = min(baseline_totals, key=baseline_totals.get)
+        scenarios[scenario] = {
+            "understock_to_overstock_ratio": float(ratio),
+            "policy_total_costs": totals,
+            "cost_reduction_vs_fixed_formula_pct": _reduction_pct(
+                fixed_total,
+                optimized_total,
+            ),
+            "cost_reduction_vs_best_baseline_pct": _reduction_pct(
+                baseline_totals[best_baseline],
+                optimized_total,
+            ),
+            "cost_reduction_pct_by_baseline": {
+                name: _reduction_pct(value, optimized_total)
+                for name, value in baseline_totals.items()
+            },
+            "best_baseline": best_baseline,
+            "best_baseline_total_cost": baseline_totals[best_baseline],
+            "optimized_improves_fixed_formula": bool(optimized_total < fixed_total),
+        }
+    return scenarios
+
+
+def _run_policy_optimization(
+    backtest: pd.DataFrame,
+    train_df: pd.DataFrame,
+    *,
+    config: dict[str, Any],
+    sensitivity_ratios: dict[str, float],
+    baseline_policies: dict[str, str],
+    order_cost: float,
+    holding_cost_rate: float,
+    interval_metrics: dict[str, Any],
+    fixed_service_level: float,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    if not config.get("enabled", True):
+        return backtest, {"enabled": False, "skipped_reason": "disabled"}
+
+    optimization_level = config.get("optimization_level", "demand_pattern")
+    if optimization_level != "demand_pattern":
+        raise ValueError("Only demand_pattern policy optimization is supported")
+
+    required = [
+        "service_level_candidates",
+        "safety_stock_multiplier_candidates",
+        "order_quantity_multiplier_candidates",
+    ]
+    missing = [key for key in required if not config.get(key)]
+    if missing:
+        raise ValueError(f"Missing policy optimization candidate grid: {missing}")
+
+    objective_scenarios = [str(s) for s in config.get("objective_scenarios", [])]
+    if not objective_scenarios:
+        objective_scenarios = sorted(sensitivity_ratios)
+    unknown = sorted(set(objective_scenarios).difference(sensitivity_ratios))
+    if unknown:
+        raise ValueError(f"Unknown policy objective scenarios: {unknown}")
+
+    policy_frame = _add_policy_inputs(
+        backtest,
+        train_df,
+        order_cost=order_cost,
+        holding_cost_rate=holding_cost_rate,
+    )
+    forecast_checksum_before = _prediction_checksum(policy_frame)
+    calibration_mask, evaluation_mask, periods = _policy_evaluation_split(
+        policy_frame,
+        calibration_fraction=float(config.get("calibration_fraction", 0.50)),
+    )
+    calibration = policy_frame.loc[calibration_mask].copy()
+    evaluation = policy_frame.loc[evaluation_mask].copy()
+    if calibration.empty or evaluation.empty:
+        raise RuntimeError(
+            "Policy optimization requires calibration and evaluation rows"
+        )
+
+    service_levels = [float(v) for v in config["service_level_candidates"]]
+    safety_multipliers = [
+        float(v) for v in config["safety_stock_multiplier_candidates"]
+    ]
+    order_multipliers = [
+        float(v) for v in config["order_quantity_multiplier_candidates"]
+    ]
+    fixed_params = {
+        "service_level": fixed_service_level,
+        "safety_stock_multiplier": 1.0,
+        "order_quantity_multiplier": 1.0,
+    }
+
+    selected: dict[str, dict[str, float]] = {}
+    calibration_metrics: dict[str, Any] = {}
+    for pattern, group_df in calibration.groupby("demand_pattern", observed=True):
+        params, metrics = _optimize_policy_for_group(
+            group_df,
+            service_levels=service_levels,
+            safety_multipliers=safety_multipliers,
+            order_multipliers=order_multipliers,
+            scenario_ratios=sensitivity_ratios,
+            objective_scenarios=objective_scenarios,
+        )
+        selected[str(pattern)] = params
+        calibration_metrics[str(pattern)] = metrics
+
+    policy_frame["fixed_formula_policy_forecast"] = _policy_quantity(
+        policy_frame,
+        service_level=fixed_params["service_level"],
+        safety_stock_multiplier=fixed_params["safety_stock_multiplier"],
+        order_quantity_multiplier=fixed_params["order_quantity_multiplier"],
+    )
+    optimized_quantities = pd.Series(index=policy_frame.index, dtype=float)
+    for pattern, params in selected.items():
+        mask = policy_frame["demand_pattern"].astype(str) == pattern
+        optimized_quantities.loc[mask] = _policy_quantity(
+            policy_frame.loc[mask],
+            service_level=params["service_level"],
+            safety_stock_multiplier=params["safety_stock_multiplier"],
+            order_quantity_multiplier=params["order_quantity_multiplier"],
+        )
+    fallback_params = fixed_params
+    missing_optimized = optimized_quantities.isna()
+    if missing_optimized.any():
+        optimized_quantities.loc[missing_optimized] = _policy_quantity(
+            policy_frame.loc[missing_optimized],
+            service_level=fallback_params["service_level"],
+            safety_stock_multiplier=fallback_params["safety_stock_multiplier"],
+            order_quantity_multiplier=fallback_params["order_quantity_multiplier"],
+        )
+    policy_frame["optimized_policy_forecast"] = optimized_quantities.clip(lower=0.0)
+
+    evaluation = policy_frame.loc[evaluation_mask].copy()
+    scenarios = _policy_evaluation_metrics(
+        evaluation,
+        sensitivity_ratios=sensitivity_ratios,
+        baseline_policies=baseline_policies,
+    )
+
+    warnings_list: list[str] = []
+    min_eval_rows = int(config.get("minimum_evaluation_rows_for_warning", 1000))
+    if len(evaluation) < min_eval_rows:
+        warnings_list.append(
+            f"policy evaluation sample is small: {len(evaluation)} rows"
+        )
+
+    large_threshold = float(config.get("large_reduction_warning_threshold_pct", 50.0))
+    for scenario, metrics in scenarios.items():
+        if metrics["cost_reduction_vs_best_baseline_pct"] >= large_threshold:
+            warnings_list.append(
+                f"large synthetic policy improvement in {scenario} scenario; "
+                "sensitive to baseline and cost assumptions"
+            )
+        if not metrics["optimized_improves_fixed_formula"]:
+            warnings_list.append(
+                f"optimized policy does not improve fixed_formula_policy in "
+                f"{scenario} scenario"
+            )
+
+    low_improves = scenarios.get("low", {}).get(
+        "optimized_improves_fixed_formula",
+        True,
+    )
+    medium_improves = scenarios.get("medium", {}).get(
+        "optimized_improves_fixed_formula",
+        True,
+    )
+    high_improves = scenarios.get("high", {}).get(
+        "optimized_improves_fixed_formula",
+        False,
+    )
+    if high_improves and (not low_improves or not medium_improves):
+        warnings_list.append(
+            "optimized policy improvement is concentrated in the high cost-ratio "
+            "scenario"
+        )
+
+    fixed_mean = float(evaluation["fixed_formula_policy_forecast"].mean())
+    optimized_mean = float(evaluation["optimized_policy_forecast"].mean())
+    stock_increase_pct = (
+        ((optimized_mean - fixed_mean) / fixed_mean) * 100.0 if fixed_mean > 0 else 0.0
+    )
+    stock_threshold = float(config.get("stock_increase_warning_threshold_pct", 25.0))
+    if stock_increase_pct >= stock_threshold:
+        warnings_list.append(
+            "optimized policy materially increases average policy quantity versus "
+            "fixed_formula_policy"
+        )
+
+    forecast_checksum_after = _prediction_checksum(policy_frame)
+    forecast_predictions_unchanged = bool(
+        forecast_checksum_before == forecast_checksum_after
+    )
+    if not forecast_predictions_unchanged:
+        warnings_list.append("policy optimization altered forecast predictions")
+
+    reductions_vs_fixed = [
+        scenario["cost_reduction_vs_fixed_formula_pct"]
+        for scenario in scenarios.values()
+    ]
+    reductions_vs_best = [
+        scenario["cost_reduction_vs_best_baseline_pct"]
+        for scenario in scenarios.values()
+    ]
+    summary = {
+        "enabled": True,
+        "method": "deterministic_grid_search",
+        "optimization_level": optimization_level,
+        "objective": "minimize mean calibration cost across configured scenarios",
+        "candidate_grid": {
+            "service_level": service_levels,
+            "safety_stock_multiplier": safety_multipliers,
+            "order_quantity_multiplier": order_multipliers,
+        },
+        "objective_scenarios": objective_scenarios,
+        "fixed_formula_policy": fixed_params,
+        "selected_policy_by_demand_pattern": selected,
+        "calibration_metrics_by_demand_pattern": calibration_metrics,
+        "policy_calibration_rows": int(calibration_mask.sum()),
+        "policy_evaluation_rows": int(evaluation_mask.sum()),
+        **periods,
+        "evaluation": scenarios,
+        "headline": {
+            "cost_reduction_vs_fixed_formula_pct_range": {
+                "min": float(min(reductions_vs_fixed)),
+                "max": float(max(reductions_vs_fixed)),
+            },
+            "cost_reduction_vs_best_baseline_pct_range": {
+                "min": float(min(reductions_vs_best)),
+                "max": float(max(reductions_vs_best)),
+            },
+            "conservative_low_ratio_reduction_vs_fixed_formula_pct": scenarios.get(
+                "low",
+                {},
+            ).get("cost_reduction_vs_fixed_formula_pct"),
+            "conservative_low_ratio_reduction_vs_best_baseline_pct": scenarios.get(
+                "low",
+                {},
+            ).get("cost_reduction_vs_best_baseline_pct"),
+        },
+        "policy_quantity_summary": {
+            "fixed_formula_mean": fixed_mean,
+            "optimized_mean": optimized_mean,
+            "optimized_vs_fixed_formula_mean_change_pct": float(stock_increase_pct),
+            "interval_width_change_pct": 0.0,
+        },
+        "forecast_prediction_checksum_before": forecast_checksum_before,
+        "forecast_prediction_checksum_after": forecast_checksum_after,
+        "forecast_predictions_unchanged": forecast_predictions_unchanged,
+        "calibrated_interval_reference": {
+            "coverage": interval_metrics["coverage"],
+            "average_width": interval_metrics["average_width"],
+            "nominal_coverage_target": interval_metrics["nominal_coverage_target"],
+        },
+        "warnings": sorted(set(warnings_list)),
+    }
+    return policy_frame, summary
 
 
 def _build_recommendations(
@@ -954,6 +1445,21 @@ def run_decision_intelligence(
             sensitivity_ratios=sensitivity_ratios,
             large_reduction_warning_threshold_pct=large_reduction_threshold,
         )
+        baseline_policy_columns = _available_baseline_policies(
+            backtest,
+            cost_baseline_policies,
+        )
+        backtest, policy_optimization = _run_policy_optimization(
+            backtest,
+            train_df,
+            config=decision_cfg["policy_optimization"],
+            sensitivity_ratios=sensitivity_ratios,
+            baseline_policies=baseline_policy_columns,
+            order_cost=order_cost,
+            holding_cost_rate=holding_cost_rate,
+            interval_metrics=calibrated_interval_metrics,
+            fixed_service_level=service_level,
+        )
 
         recommendations = _build_recommendations(
             train_df,
@@ -1000,6 +1506,7 @@ def run_decision_intelligence(
                 ),
             },
             "cost_metrics": cost_metrics,
+            "policy_optimization": policy_optimization,
             "interval_metrics": {
                 "nominal_coverage_target": calibrated_interval_metrics[
                     "nominal_coverage_target"
@@ -1019,7 +1526,10 @@ def run_decision_intelligence(
                 "lightgbm_quantile_reference": raw_interval_metrics,
             },
             "statsforecast_interval_reference": sf_reference,
-            "warnings": cost_metrics["warnings"],
+            "warnings": sorted(
+                set(cost_metrics["warnings"])
+                .union(policy_optimization.get("warnings", []))
+            ),
             "limitations": [
                 "synthetic data only",
                 "simulated cost backtest only",
@@ -1079,6 +1589,40 @@ def run_decision_intelligence(
                     f"cost_reduction_vs_{name}_pct",
                     float(reduction),
                 )
+            if policy_optimization.get("enabled"):
+                headline = policy_optimization.get("headline", {})
+                low_fixed = headline.get(
+                    "conservative_low_ratio_reduction_vs_fixed_formula_pct"
+                )
+                low_best = headline.get(
+                    "conservative_low_ratio_reduction_vs_best_baseline_pct"
+                )
+                if low_fixed is not None:
+                    mlflow.log_metric(
+                        "policy_low_reduction_vs_fixed_formula_pct",
+                        float(low_fixed),
+                    )
+                if low_best is not None:
+                    mlflow.log_metric(
+                        "policy_low_reduction_vs_best_baseline_pct",
+                        float(low_best),
+                    )
+                for pattern, params in policy_optimization.get(
+                    "selected_policy_by_demand_pattern",
+                    {},
+                ).items():
+                    mlflow.log_param(
+                        f"policy_{pattern}_service_level",
+                        params["service_level"],
+                    )
+                    mlflow.log_param(
+                        f"policy_{pattern}_safety_stock_multiplier",
+                        params["safety_stock_multiplier"],
+                    )
+                    mlflow.log_param(
+                        f"policy_{pattern}_order_quantity_multiplier",
+                        params["order_quantity_multiplier"],
+                    )
             if "coverage" in sf_reference:
                 mlflow.log_metric(
                     "statsforecast_interval_coverage",

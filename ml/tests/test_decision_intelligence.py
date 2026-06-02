@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import yaml
@@ -109,6 +110,9 @@ def decision_config(tmp_path, synthetic_dir) -> dict:
     config["decision"]["mlflow"]["enabled"] = False
     config["decision"]["statsforecast_interval_reference"]["enabled"] = False
     config["decision"]["cost"]["large_reduction_warning_threshold_pct"] = 0.0
+    config["decision"]["policy_optimization"][
+        "large_reduction_warning_threshold_pct"
+    ] = 0.0
     return config
 
 
@@ -176,3 +180,67 @@ def test_cost_metrics_include_multiple_baselines_and_warning(decision_result):
         in metrics["warnings"]
     )
     assert metrics["sensitivity_by_understock_to_overstock_ratio"]
+
+
+def test_policy_optimization_is_deterministic(decision_config, decision_result):
+    repeat = run_decision_intelligence(decision_config, max_items=12, max_days=90)
+    assert (
+        repeat["policy_optimization"]["selected_policy_by_demand_pattern"]
+        == decision_result["policy_optimization"]["selected_policy_by_demand_pattern"]
+    )
+    assert repeat["policy_optimization"]["headline"] == decision_result[
+        "policy_optimization"
+    ]["headline"]
+
+
+def test_policy_parameters_are_from_configured_grid(decision_config, decision_result):
+    policy = decision_result["policy_optimization"]
+    grid = decision_config["decision"]["policy_optimization"]
+    service_levels = set(grid["service_level_candidates"])
+    safety_multipliers = set(grid["safety_stock_multiplier_candidates"])
+    order_multipliers = set(grid["order_quantity_multiplier_candidates"])
+
+    assert policy["optimization_level"] == "demand_pattern"
+    assert policy["selected_policy_by_demand_pattern"]
+    for params in policy["selected_policy_by_demand_pattern"].values():
+        assert params["service_level"] in service_levels
+        assert params["safety_stock_multiplier"] in safety_multipliers
+        assert params["order_quantity_multiplier"] in order_multipliers
+
+
+def test_policy_optimization_keeps_forecasts_and_intervals_unchanged(decision_result):
+    policy = decision_result["policy_optimization"]
+    intervals = decision_result["interval_metrics"]["calibrated_empirical"]
+
+    assert policy["forecast_predictions_unchanged"] is True
+    assert policy["forecast_prediction_checksum_before"] == pytest.approx(
+        policy["forecast_prediction_checksum_after"]
+    )
+    assert policy["calibrated_interval_reference"]["coverage"] == pytest.approx(
+        intervals["coverage"]
+    )
+    assert policy["calibrated_interval_reference"]["average_width"] == pytest.approx(
+        intervals["average_width"]
+    )
+
+
+def test_policy_reports_split_metrics_and_sensitivity(decision_result):
+    policy = decision_result["policy_optimization"]
+    scenarios = policy["evaluation"]
+
+    assert policy["policy_calibration_rows"] > 0
+    assert policy["policy_evaluation_rows"] > 0
+    assert policy["policy_calibration_period"] != policy["policy_evaluation_period"]
+    assert set(scenarios) == {"low", "medium", "high"}
+
+    for metrics in scenarios.values():
+        assert np.isfinite(metrics["cost_reduction_vs_fixed_formula_pct"])
+        assert np.isfinite(metrics["cost_reduction_vs_best_baseline_pct"])
+        for total in metrics["policy_total_costs"].values():
+            assert np.isfinite(total)
+            assert total >= 0.0
+
+
+def test_policy_governance_warnings(decision_result):
+    warnings = decision_result["policy_optimization"]["warnings"]
+    assert any("synthetic policy improvement" in warning for warning in warnings)

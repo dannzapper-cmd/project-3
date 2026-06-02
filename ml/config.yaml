@@ -73,6 +73,32 @@ decision:
     min_group_rows: 100
     minimum_acceptable_coverage: 0.85
     minimum_evaluation_rows_for_guard: 1000
+  policy_optimization:
+    enabled: true
+    optimization_level: demand_pattern
+    calibration_fraction: 0.50
+    service_level_candidates:
+      - 0.85
+      - 0.90
+      - 0.95
+      - 0.97
+    safety_stock_multiplier_candidates:
+      - 0.75
+      - 1.0
+      - 1.25
+      - 1.5
+    order_quantity_multiplier_candidates:
+      - 0.5
+      - 1.0
+      - 1.5
+      - 2.0
+    objective_scenarios:
+      - low
+      - medium
+      - high
+    minimum_evaluation_rows_for_warning: 1000
+    large_reduction_warning_threshold_pct: 50.0
+    stock_increase_warning_threshold_pct: 25.0
   risk:
     low_threshold: 0.20
     high_threshold: 0.50

@@ -42,6 +42,7 @@ The decision MLflow run logs:
   - `selected_pinball_loss`
   - `calibrated_interval_coverage`
   - `calibrated_interval_average_width`
+- Policy optimization metrics under `policy_optimization`
 
 ## Forecasting layer
 
@@ -192,6 +193,76 @@ large synthetic improvement; sensitive to baseline and cost assumptions
 Cost results are labeled as **synthetic simulated backtest only**. They are not
 real-world savings or production claims.
 
+## Decision policy optimization (PR-04C)
+
+PR-04C adds a small, deterministic policy grid search. It optimizes decision
+policy parameters, not forecasts, synthetic data, or cost assumptions.
+
+Candidate grid:
+
+- `service_level`: `0.85`, `0.90`, `0.95`, `0.97`
+- `safety_stock_multiplier`: `0.75`, `1.0`, `1.25`, `1.5`
+- `order_quantity_multiplier`: `0.5`, `1.0`, `1.5`, `2.0`
+
+The optimizer runs at `demand_pattern` level (`regular`, `intermittent`) rather
+than per item. This limits overfitting risk on the synthetic holdout.
+
+### Temporal discipline
+
+The existing forecast holdout is split again for policy selection:
+
+- `policy_calibration`: first half of the holdout
+- `policy_evaluation`: second half of the holdout
+
+Grid search selects policy parameters on `policy_calibration` only. Reported
+policy cost metrics are computed on `policy_evaluation`.
+
+### Policy quantity approximation
+
+The policy layer uses a lightweight daily policy quantity approximation:
+
+```text
+policy_quantity =
+  forecast_p50
+  + (z_score * demand_std * sqrt(lead_time_days) * safety_stock_multiplier)
+    / lead_time_days
+  + (EOQ * order_quantity_multiplier) / 365
+```
+
+This is an auditable synthetic backtest approximation, not a production
+inventory simulator with order queues, receipts, or stock ledger dynamics.
+
+### Compared policies
+
+`decision_summary.json` compares:
+
+- `fixed_formula_policy`: PR-04-style defaults (`service_level = 0.95`,
+  `safety_stock_multiplier = 1.0`, `order_quantity_multiplier = 1.0`)
+- `optimized_policy`: selected by deterministic grid search
+- `lag_7`
+- `moving_average_7`
+- `moving_average_28`
+- `statsforecast` when available
+
+Policy metrics are reported across the same low / medium / high
+understock-to-overstock sensitivity scenarios. The headline reports a range,
+not only the largest improvement. If the optimized policy worsens a scenario
+relative to the fixed formula, that result is reported and a warning is emitted.
+
+### Metric governance
+
+The summary flags:
+
+- unusually large synthetic improvements
+- small policy evaluation samples
+- materially higher optimized policy quantities versus the fixed formula
+- improvements that appear only in the high cost-ratio scenario
+- unchanged forecast prediction checksum before/after policy optimization
+- calibrated interval coverage/width reference used by the policy layer
+
+Policy optimization does not alter PR-03 forecast metrics or PR-04B calibrated
+interval calculations.
+
 ## Output schema
 
 `decision_recommendations.csv` contains one row per part with:
@@ -209,6 +280,8 @@ real-world savings or production claims.
 
 `prediction_lower` and `prediction_upper` are calibrated empirical intervals.
 Raw LightGBM quantile interval metrics remain in `decision_summary.json`.
+Selected policy parameters by `demand_pattern` are reported in
+`decision_summary.json` under `policy_optimization`.
 
 ## Limitations
 
