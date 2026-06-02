@@ -1,0 +1,27 @@
+[project]
+name = "invforge"
+version = "0.1.0"
+description = "InvForge — AI Operations Control Tower for Inventory & Operations"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+    "detect-secrets>=1.5.0",
+    "pre-commit>=4.0.0",
+    "ruff>=0.9.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+
+[tool.uv]
+package = false
