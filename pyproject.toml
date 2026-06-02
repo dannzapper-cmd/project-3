@@ -38,5 +38,9 @@ select = ["E", "F", "W"]
 python_version = "3.12"
 strict = false
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["api/tests"]
+
 [tool.uv]
 package = false

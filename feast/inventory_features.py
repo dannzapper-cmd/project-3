@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from feast import Entity, FeatureView, Field, FileSource
+from feast import Entity, FeatureView, Field, FileSource, ValueType
 from feast.types import Float32, Int64, String
 
 part = Entity(
     name="part",
     join_keys=["part_id"],
+    value_type=ValueType.STRING,
     description="Inventory part/item identifier from InvenTree or synthetic data.",
 )
 

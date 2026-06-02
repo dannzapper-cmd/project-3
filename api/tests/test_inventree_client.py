@@ -27,26 +27,26 @@ async def test_pagination_handling() -> None:
         api_token="secret-token",
     )
     respx.get("http://inventree.test/api/part/").mock(
-        return_value=Response(
-            200,
-            json={
-                "count": 2,
-                "next": "http://inventree.test/api/part/?limit=1&offset=1",
-                "previous": None,
-                "results": [{"pk": 1, "name": "Part 1"}],
-            },
-        )
-    )
-    respx.get("http://inventree.test/api/part/?limit=1&offset=1").mock(
-        return_value=Response(
-            200,
-            json={
-                "count": 2,
-                "next": None,
-                "previous": "http://inventree.test/api/part/",
-                "results": [{"pk": 2, "name": "Part 2"}],
-            },
-        )
+        side_effect=[
+            Response(
+                200,
+                json={
+                    "count": 2,
+                    "next": "http://inventree.test/api/part/?limit=1&offset=1",
+                    "previous": None,
+                    "results": [{"pk": 1, "name": "Part 1"}],
+                },
+            ),
+            Response(
+                200,
+                json={
+                    "count": 2,
+                    "next": None,
+                    "previous": "http://inventree.test/api/part/",
+                    "results": [{"pk": 2, "name": "Part 2"}],
+                },
+            ),
+        ]
     )
 
     records = await client.list_endpoint("/api/part/")
