@@ -21,8 +21,8 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install dev dependencies
-        run: uv sync --group dev
+      - name: Install dev and ML dependencies
+        run: uv sync --group dev --group ml
 
       - name: Lint with Ruff
         run: uv run ruff check .
@@ -30,7 +30,7 @@ jobs:
       - name: Run tests
         env:
           MLFLOW_ALLOW_FILE_STORE: "true"
-        run: uv run pytest
+        run: uv run --group dev --group ml pytest
 
       - name: Generate synthetic data
         run: |
