@@ -22,6 +22,12 @@ app/inventree-data/
 
 # Synthetic data output (regenerated locally)
 data/synthetic/output/
+data/raw/
+data/processed/
+
+# DVC local metadata/cache
+.dvc/tmp/
+.dvc/cache/
 
 # IDE / OS
 .idea/

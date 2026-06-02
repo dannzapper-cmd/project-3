@@ -1,0 +1,29 @@
+schema: '2.0'
+stages:
+  generate-data:
+    cmd: uv run python data/synthetic/generate_inventory_data.py --output 
+      data/synthetic/output --seed 42
+    deps:
+    - path: data/synthetic/generate_inventory_data.py
+      hash: md5
+      md5: 4e683a570e3773dde717f2e8e061a30d
+      size: 13219
+    outs:
+    - path: data/synthetic/output
+      hash: md5
+      md5: 760319f8ede3d6392c4a6f3fdeaa5641.dir
+      size: 1751995
+      nfiles: 5
+  validate-data:
+    cmd: uv run python -m api.validation --synthetic-dir data/synthetic/output 
+      --processed-dir data/processed
+    deps:
+    - path: api/validation.py
+      hash: md5
+      md5: 7d01e5737f3dfa77a1410a34fa62bc08
+      size: 9743
+    - path: data/synthetic/output
+      hash: md5
+      md5: 760319f8ede3d6392c4a6f3fdeaa5641.dir
+      size: 1751995
+      nfiles: 5

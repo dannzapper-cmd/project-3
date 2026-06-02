@@ -1,0 +1,13 @@
+stages:
+  generate-data:
+    cmd: uv run python data/synthetic/generate_inventory_data.py --output data/synthetic/output --seed 42
+    deps:
+      - data/synthetic/generate_inventory_data.py
+    outs:
+      - data/synthetic/output
+  validate-data:
+    cmd: uv run python -m api.validation --synthetic-dir data/synthetic/output --processed-dir data/processed
+    deps:
+      - api/validation.py
+      - data/synthetic/output
+

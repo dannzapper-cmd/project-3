@@ -4,12 +4,27 @@ version = "0.1.0"
 description = "InvForge — AI Operations Control Tower for Inventory & Operations"
 readme = "README.md"
 requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
+    "pandas>=2.2.0",
+    "pandera>=0.20.0",
+    "structlog>=24.0.0",
+    "uvicorn[standard]>=0.30.0",
+]
 
 [dependency-groups]
 dev = [
     "detect-secrets>=1.5.0",
     "pre-commit>=4.0.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "respx>=0.21.0",
     "ruff>=0.9.0",
+]
+pipeline = [
+    "dvc>=3.0.0",
+    "feast>=0.40.0",
 ]
 
 [tool.ruff]
@@ -22,6 +37,10 @@ select = ["E", "F", "W"]
 [tool.mypy]
 python_version = "3.12"
 strict = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["api/tests"]
 
 [tool.uv]
 package = false
