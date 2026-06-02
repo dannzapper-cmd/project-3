@@ -118,7 +118,16 @@ Outputs CSV files in `data/synthetic/output/`:
 
 Data is **deterministic** — the same `--seed` always produces identical output.
 
-### 5. Run the AI Operations API
+### 5. Train demand forecast baselines (PR-03)
+
+```bash
+uv sync --group dev --group ml
+make train-ml
+```
+
+This trains a global **LightGBM** model and **StatsForecast** baselines (AutoETS/SeasonalNaive for regular items, Croston/CrostonSBA for intermittent). Metrics and artifacts are logged to local `mlruns/`. See `docs/runbooks/pr-03-ml-baseline.md` and `docs/model-cards/demand_forecast_baseline.md`.
+
+### 6. Run the AI Operations API
 
 ```bash
 cp api/.env.example api/.env

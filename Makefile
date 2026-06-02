@@ -72,6 +72,9 @@ validate-data:
 dvc-repro:
 	$(UV) run dvc repro
 
+train-ml: generate-data
+	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true $(UV) run --group ml python -m ml.train --config ml/config.yaml
+
 lint:
 	$(UV) run ruff check .
 

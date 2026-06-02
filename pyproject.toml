@@ -26,6 +26,15 @@ pipeline = [
     "dvc>=3.0.0",
     "feast>=0.40.0",
 ]
+ml = [
+    "lightgbm>=4.0.0",
+    "statsforecast>=2.0.0",
+    "mlflow>=3.0.0",
+    "shap>=0.45.0",
+    "scikit-learn>=1.5.0",
+    "pyyaml>=6.0.0",
+    "matplotlib>=3.8.0",
+]
 
 [tool.ruff]
 line-length = 88
@@ -40,7 +49,7 @@ strict = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["api/tests"]
+testpaths = ["api/tests", "ml/tests"]
 
 [tool.uv]
 package = false

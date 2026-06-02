@@ -48,3 +48,6 @@ htmlcov/
 
 # Logs
 *.log
+
+# MLflow local tracking (PR-03+)
+mlruns/

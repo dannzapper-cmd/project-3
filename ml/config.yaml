@@ -1,0 +1,39 @@
+# PR-03 demand forecasting baseline configuration
+
+data:
+  synthetic_dir: data/synthetic/output
+  demand_history_file: demand_history.csv
+  parts_file: parts.csv
+
+split:
+  train_fraction: 0.75
+
+lightgbm:
+  objective: regression
+  metric: mae
+  learning_rate: 0.05
+  num_leaves: 31
+  max_depth: -1
+  n_estimators: 200
+  min_child_samples: 20
+  subsample: 0.8
+  colsample_bytree: 0.8
+  random_state: 42
+  verbose: -1
+
+statsforecast:
+  season_length: 7
+  regular_models:
+    - AutoETS
+    - SeasonalNaive
+  intermittent_models:
+    - CrostonClassic
+    - CrostonSBA
+
+mlflow:
+  tracking_uri: mlruns
+  experiment_name: demand_forecast_baseline
+
+shap:
+  sample_size: 200
+  random_state: 42
