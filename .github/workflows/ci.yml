@@ -27,6 +27,11 @@ jobs:
       - name: Lint with Ruff
         run: uv run ruff check .
 
+      - name: Run tests
+        env:
+          MLFLOW_ALLOW_FILE_STORE: "true"
+        run: uv run pytest
+
       - name: Generate synthetic data
         run: |
           uv run python data/synthetic/generate_inventory_data.py \

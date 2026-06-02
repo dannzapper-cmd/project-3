@@ -24,6 +24,7 @@ help:
 	@echo "  generate-data   Generate deterministic synthetic inventory CSVs"
 	@echo "  validate-data   Validate synthetic and processed data with Pandera"
 	@echo "  dvc-repro       Reproduce the DVC data pipeline"
+	@echo "  train-ml        Train demand forecasting baselines (PR-03)"
 	@echo "  lint            Run Ruff linter"
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
