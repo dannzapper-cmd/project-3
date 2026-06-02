@@ -45,7 +45,7 @@ docker-logs:
 docker-init:
 	@test -f $(COMPOSE_ENV) || cp app/.env.example $(COMPOSE_ENV)
 	@echo "Running InvenTree first-time setup (invoke update)..."
-	$(COMPOSE) run --rm inventree-server invoke update
+	$(COMPOSE) run --rm -T inventree-server invoke update
 
 generate-data:
 	$(UV) run python data/synthetic/generate_inventory_data.py --output $(OUTPUT_DIR) --seed $(SEED)
