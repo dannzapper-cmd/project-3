@@ -16,6 +16,7 @@ the same ``mlflow_run_id`` label. If found, saving is skipped.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,10 @@ def package_champion(
     model_name: str,
 ) -> dict[str, Any]:
     """Save the champion model to the local BentoML store; return a summary."""
+
+    # PR-05 must run fully offline: disable BentoML usage telemetry before
+    # importing it (no network calls). Set as a default so it can be overridden.
+    os.environ.setdefault("BENTOML_DO_NOT_TRACK", "true")
 
     try:
         import bentoml

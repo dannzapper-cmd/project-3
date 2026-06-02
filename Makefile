@@ -85,7 +85,7 @@ decision-intel: generate-data
 # Idempotent and offline. Run train-ml (and optionally decision-intel) first so
 # the champion model and PR-04 cost context are available.
 mlops-loop: generate-data
-	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true $(UV) run --group ml --group mlops python -m mlops.loop --config mlops/config.yaml --ml-config ml/config.yaml
+	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true BENTOML_DO_NOT_TRACK=true $(UV) run --group ml --group mlops python -m mlops.loop --config mlops/config.yaml --ml-config ml/config.yaml
 
 lint:
 	$(UV) run ruff check .
