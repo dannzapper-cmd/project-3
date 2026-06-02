@@ -80,6 +80,13 @@ train-ml: generate-data
 decision-intel: generate-data
 	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true $(UV) run --group ml python -m ml.decision_intelligence --config ml/config.yaml
 
+# PR-05 local MLOps loop: Evidently drift/quality reports, MLflow registry
+# metadata, champion/challenger comparison, and minimal BentoML packaging.
+# Idempotent and offline. Run train-ml (and optionally decision-intel) first so
+# the champion model and PR-04 cost context are available.
+mlops-loop: generate-data
+	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true $(UV) run --group ml --group mlops python -m mlops.loop --config mlops/config.yaml --ml-config ml/config.yaml
+
 lint:
 	$(UV) run ruff check .
 

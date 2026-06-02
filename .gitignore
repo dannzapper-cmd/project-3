@@ -52,5 +52,10 @@ htmlcov/
 # MLflow local tracking (PR-03+)
 mlruns/
 
-# Generated decision intelligence artifacts (PR-04+)
+# Generated decision intelligence + MLOps artifacts (PR-04+, PR-05+)
 artifacts/
+
+# BentoML local model store / build outputs (PR-05; never commit heavy bentos)
+bentoml/
+.bentoml/
+*.bento

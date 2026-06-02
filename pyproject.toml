@@ -36,6 +36,10 @@ ml = [
     "matplotlib>=3.8.0",
     "scipy>=1.15.3",
 ]
+mlops = [
+    "evidently>=0.7.0,<0.8.0",
+    "bentoml>=1.4.0,<2.0.0",
+]
 
 [tool.ruff]
 line-length = 88
