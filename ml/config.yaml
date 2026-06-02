@@ -55,6 +55,24 @@ decision:
   cost:
     understock_cost_multiplier: 1.0
     naive_policy: lag_7
+    baseline_policies:
+      - lag_7
+      - moving_average_7
+      - moving_average_28
+      - statsforecast
+    sensitivity_understock_to_overstock_ratios:
+      low: 5.0
+      medium: 20.0
+      high: 100.0
+    large_reduction_warning_threshold_pct: 50.0
+  interval_calibration:
+    enabled: true
+    nominal_coverage_target: 0.90
+    calibration_fraction: 0.50
+    method: split_empirical_abs_residual_by_demand_pattern
+    min_group_rows: 100
+    minimum_acceptable_coverage: 0.85
+    minimum_evaluation_rows_for_guard: 1000
   risk:
     low_threshold: 0.20
     high_threshold: 0.50

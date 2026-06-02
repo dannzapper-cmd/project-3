@@ -35,10 +35,13 @@ The decision MLflow run logs:
   - `lightgbm_quantile_p90`
 - Decision artifacts under MLflow artifact path `decision/`
 - Portfolio metrics:
-  - `naive_total_cost`
+  - `baseline_total_costs`
   - `optimized_total_cost`
-  - `cost_reduction_pct`
+  - `cost_reduction_vs_best_baseline_pct`
+  - `cost_reduction_pct_by_baseline`
   - `selected_pinball_loss`
+  - `calibrated_interval_coverage`
+  - `calibrated_interval_average_width`
 
 ## Forecasting layer
 
@@ -51,8 +54,50 @@ that stock, reorder, safety-stock, cost, and stockout fields are not used as
 demand forecasting features. Inventory metadata is applied only after forecasts
 are generated.
 
-StatsForecast native intervals are attempted as an MLflow/reference summary
-when available. LightGBM quantile intervals are the primary PR-04 interval MVP.
+StatsForecast native conformal intervals are logged as a reference summary when
+available. They are not the headline interval metric because the current
+synthetic holdout undercovers relative to the requested service level.
+
+## Prediction intervals and calibration
+
+The raw LightGBM p10/p90 interval is reported as
+`lightgbm_quantile_reference`. It is useful as a model-native quantile reference,
+but it is not the primary calibrated interval.
+
+The primary interval metric is `calibrated_empirical`:
+
+1. Train LightGBM p10/p50/p90 models on the PR-03 train split.
+2. Predict the existing temporal holdout.
+3. Split that holdout temporally:
+   - first half: residual calibration
+   - second half: interval evaluation
+4. Compute absolute residuals around the p50 forecast on the calibration slice.
+5. Estimate the empirical residual width for
+   `nominal_coverage_target = 0.90`.
+6. Use demand-pattern-specific widths when enough calibration rows exist;
+   otherwise fall back to the overall residual width.
+7. Apply calibrated intervals as:
+
+```text
+prediction_lower = max(prediction - residual_width, 0)
+prediction_upper = prediction + residual_width
+```
+
+This is a lightweight split empirical / conformal-style calibration. It is not
+MAPIE and does not add a new dependency.
+
+Reported fields:
+
+- `nominal_coverage_target`
+- `realized_coverage_overall`
+- `realized_coverage_by_demand_pattern`
+- `average_interval_width`
+- `coverage_width_tradeoff_notes`
+
+Coverage and width are also reported for the raw LightGBM p10/p90 reference and
+the StatsForecast native conformal reference. Wider calibrated intervals improve
+coverage but reduce sharpness. These diagnostics are still synthetic backtest
+metrics, not production guarantees.
 
 ## Inventory formulas
 
@@ -120,7 +165,29 @@ Defaults:
 
 The pipeline selects the available LightGBM quantile closest to `q`, computes
 pinball loss, and simulates holding plus stockout cost on the synthetic temporal
-backtest. The naive baseline policy is `lag_7`.
+backtest.
+
+Cost comparison baselines:
+
+- `lag_7`: seasonal naive reference
+- `moving_average_7`: short moving-average policy
+- `moving_average_28`: longer moving-average policy
+- `statsforecast`: PR-03 StatsForecast point forecast policy when available
+
+The headline reduction is now against the best available baseline by total
+simulated cost, not only against `lag_7`. The summary still reports lag-7
+metrics for continuity with PR-04.
+
+Sensitivity analysis is reported for low / medium / high
+understock-to-overstock cost ratios. These scenarios do not retune the synthetic
+data or hide unfavorable results; they show how dependent the simulated cost
+number is on cost assumptions.
+
+If the synthetic cost reduction is unusually large, the summary includes:
+
+```text
+large synthetic improvement; sensitive to baseline and cost assumptions
+```
 
 Cost results are labeled as **synthetic simulated backtest only**. They are not
 real-world savings or production claims.
@@ -139,6 +206,9 @@ real-world savings or production claims.
 - `stockout_risk`, `risk_level`
 - `newsvendor_quantile`, `selected_quantile_alpha`
 - `selected_quantile_forecast_daily`, `warnings`
+
+`prediction_lower` and `prediction_upper` are calibrated empirical intervals.
+Raw LightGBM quantile interval metrics remain in `decision_summary.json`.
 
 ## Limitations
 

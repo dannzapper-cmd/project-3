@@ -108,6 +108,7 @@ def decision_config(tmp_path, synthetic_dir) -> dict:
     config["decision"]["artifact_dir"] = str(tmp_path / "artifacts" / "decision")
     config["decision"]["mlflow"]["enabled"] = False
     config["decision"]["statsforecast_interval_reference"]["enabled"] = False
+    config["decision"]["cost"]["large_reduction_warning_threshold_pct"] = 0.0
     return config
 
 
@@ -147,7 +148,31 @@ def test_decision_artifact_schema_and_bounds(decision_result):
     assert set(recommendations["risk_level"]).issubset({"low", "medium", "high"})
 
 
-def test_headline_synthetic_cost_metric(decision_result):
+def test_interval_metrics_are_bounded_and_non_negative(decision_result):
+    metrics = decision_result["interval_metrics"]
+    calibrated = metrics["calibrated_empirical"]
+
+    assert metrics["nominal_coverage_target"] == pytest.approx(0.90)
+    assert 0.0 <= metrics["realized_coverage_overall"] <= 1.0
+    assert metrics["average_interval_width"] >= 0.0
+    assert 0.0 <= calibrated["coverage"] <= 1.0
+    assert calibrated["average_width"] >= 0.0
+
+    for pattern_metrics in metrics["realized_coverage_by_demand_pattern"].values():
+        assert 0.0 <= pattern_metrics["coverage"] <= 1.0
+        assert pattern_metrics["average_width"] >= 0.0
+
+
+def test_cost_metrics_include_multiple_baselines_and_warning(decision_result):
     metrics = decision_result["cost_metrics"]
-    assert metrics["optimized_total_cost"] < metrics["naive_total_cost"]
-    assert metrics["cost_reduction_pct"] > 0.0
+    assert metrics["baseline_count"] >= 2
+    assert len(metrics["baseline_total_costs"]) >= 2
+    assert "lag_7" in metrics["baseline_total_costs"]
+    assert "moving_average_7" in metrics["baseline_total_costs"]
+    assert metrics["optimized_total_cost"] < metrics["best_baseline_total_cost"]
+    assert metrics["cost_reduction_vs_best_baseline_pct"] > 0.0
+    assert (
+        "large synthetic improvement; sensitive to baseline and cost assumptions"
+        in metrics["warnings"]
+    )
+    assert metrics["sensitivity_by_understock_to_overstock_ratio"]

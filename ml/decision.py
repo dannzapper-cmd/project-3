@@ -128,6 +128,51 @@ def enforce_prediction_interval_monotonicity(
     )
 
 
+def interval_coverage_metrics(
+    frame: pd.DataFrame,
+    *,
+    actual_col: str,
+    lower_col: str,
+    upper_col: str,
+    group_col: str | None = None,
+) -> dict[str, object]:
+    """Compute coverage and interval width overall and optionally by group."""
+
+    required = [actual_col, lower_col, upper_col]
+    if group_col:
+        required.append(group_col)
+    missing = [col for col in required if col not in frame.columns]
+    if missing:
+        raise ValueError(f"Missing interval metric columns: {missing}")
+
+    valid = frame[required].dropna().copy()
+    if valid.empty:
+        return {"coverage": float("nan"), "average_width": float("nan"), "rows": 0}
+
+    width = (valid[upper_col] - valid[lower_col]).clip(lower=0.0)
+    covered = (valid[actual_col] >= valid[lower_col]) & (
+        valid[actual_col] <= valid[upper_col]
+    )
+    metrics: dict[str, object] = {
+        "coverage": float(covered.mean()),
+        "average_width": float(width.mean()),
+        "rows": int(len(valid)),
+    }
+
+    if group_col:
+        grouped: dict[str, dict[str, float | int]] = {}
+        working = valid.assign(_covered=covered, _width=width)
+        for group, group_df in working.groupby(group_col, observed=True):
+            grouped[str(group)] = {
+                "coverage": float(group_df["_covered"].mean()),
+                "average_width": float(group_df["_width"].mean()),
+                "rows": int(len(group_df)),
+            }
+        metrics["by_demand_pattern"] = grouped
+
+    return metrics
+
+
 def stockout_risk_normal(
     forecast_mean_daily: float,
     demand_std_daily: float,

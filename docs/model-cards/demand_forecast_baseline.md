@@ -84,6 +84,12 @@ baseline training behavior remains unchanged.
 
 - LightGBM quantile regressors (`p10/p50/p90`) are trained via additive helper
   functions for decision intervals and cost-aware backtesting.
+- Raw LightGBM p10/p90 and StatsForecast native conformal intervals are reported
+  as references. The primary PR-04B interval metric is a split empirical
+  residual calibration targeting 90% nominal coverage on the temporal holdout.
+- Calibrated interval coverage and average width are reported overall and by
+  `demand_pattern`. These are synthetic backtest diagnostics, not production
+  guarantees.
 - Default service level is `0.95`, with
   `z_score = scipy.stats.norm.ppf(service_level)`.
 - Safety stock assumes fixed lead time and demand variance only.
@@ -91,14 +97,20 @@ baseline training behavior remains unchanged.
   - `order_cost = 50.0` USD
   - `annual_holding_cost_per_unit = unit_cost * 0.20`
 - Stockout risk uses a Normal approximation during lead time.
-- Cost results are synthetic simulated backtest metrics only, not real-world
-  savings claims.
+- Cost simulation compares against multiple baselines (`lag_7`,
+  `moving_average_7`, `moving_average_28`, and StatsForecast when available)
+  and reports low / medium / high understock-to-overstock sensitivity scenarios.
+- Large synthetic cost reductions are flagged as sensitive to baseline and cost
+  assumptions. They are not real-world savings claims.
 
 ## Known Limitations
 
 - Synthetic data only; metrics do not reflect live InvenTree demand
 - PR-04 prediction intervals and cost-aware metrics are synthetic decision
   artifacts, not production inventory policies
+- Interval calibration uses the existing temporal holdout split into calibration
+  and evaluation slices; a future independent backtest would be required for a
+  stronger out-of-sample coverage claim
 - StatsForecast uses the first configured model column per pattern batch (not ensembled)
 - Short-history series may cause AutoETS failures on very small subsets (smoke tests use 90-day windows)
 - MLflow 3.x requires `MLFLOW_ALLOW_FILE_STORE=true` for local `mlruns/` tracking

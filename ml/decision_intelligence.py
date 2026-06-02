@@ -22,6 +22,7 @@ from ml.decision import (
     calculate_reorder_point,
     calculate_safety_stock,
     enforce_prediction_interval_monotonicity,
+    interval_coverage_metrics,
     nearest_quantile_alpha,
     newsvendor_quantile,
     pinball_loss,
@@ -40,7 +41,10 @@ from ml.models.lightgbm_model import (
     predict_quantile_models,
     train_quantile_models,
 )
-from ml.models.statsforecast_model import fit_predict_statsforecast_intervals
+from ml.models.statsforecast_model import (
+    fit_predict_statsforecast,
+    fit_predict_statsforecast_intervals,
+)
 from ml.split import temporal_train_test_split
 from ml.train import load_config
 
@@ -58,6 +62,27 @@ DEFAULT_DECISION_CONFIG: dict[str, Any] = {
     "cost": {
         "understock_cost_multiplier": 1.0,
         "naive_policy": "lag_7",
+        "baseline_policies": [
+            "lag_7",
+            "moving_average_7",
+            "moving_average_28",
+            "statsforecast",
+        ],
+        "sensitivity_understock_to_overstock_ratios": {
+            "low": 5.0,
+            "medium": 20.0,
+            "high": 100.0,
+        },
+        "large_reduction_warning_threshold_pct": 50.0,
+    },
+    "interval_calibration": {
+        "enabled": True,
+        "nominal_coverage_target": 0.90,
+        "calibration_fraction": 0.50,
+        "method": "split_empirical_abs_residual_by_demand_pattern",
+        "min_group_rows": 100,
+        "minimum_acceptable_coverage": 0.85,
+        "minimum_evaluation_rows_for_guard": 1000,
     },
     "risk": {
         "low_threshold": 0.20,
@@ -139,32 +164,213 @@ def _load_parts_metadata(synthetic_dir: Path, parts_file: str) -> pd.DataFrame:
     return metadata
 
 
+def _higher_quantile(values: pd.Series, quantile: float) -> float:
+    """Deterministic empirical quantile used for residual calibration."""
+
+    clean = pd.to_numeric(values, errors="coerce").dropna()
+    if clean.empty:
+        return 0.0
+    return float(np.quantile(clean.to_numpy(), quantile, method="higher"))
+
+
+def _interval_evaluation_split(
+    backtest: pd.DataFrame,
+    *,
+    calibration_fraction: float,
+) -> tuple[pd.Series, pd.Series, dict[str, str]]:
+    dates = sorted(pd.to_datetime(backtest["date"]).unique())
+    if len(dates) < 2:
+        raise ValueError("Need at least two holdout dates for interval calibration")
+
+    split_index = int(len(dates) * calibration_fraction)
+    split_index = min(max(split_index, 1), len(dates) - 1)
+    calibration_end = dates[split_index - 1]
+    evaluation_start = dates[split_index]
+
+    date_values = pd.to_datetime(backtest["date"])
+    calibration_mask = date_values <= calibration_end
+    evaluation_mask = date_values >= evaluation_start
+    periods = {
+        "calibration_period": (
+            f"{date_values[calibration_mask].min().date()} to "
+            f"{date_values[calibration_mask].max().date()}"
+        ),
+        "evaluation_period": (
+            f"{date_values[evaluation_mask].min().date()} to "
+            f"{date_values[evaluation_mask].max().date()}"
+        ),
+    }
+    return calibration_mask, evaluation_mask, periods
+
+
+def _apply_calibrated_intervals(
+    backtest: pd.DataFrame,
+    config: dict[str, Any],
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Apply split empirical residual intervals and return evaluation metrics."""
+
+    if not config.get("enabled", True):
+        metrics = interval_coverage_metrics(
+            backtest,
+            actual_col=TARGET_COLUMN,
+            lower_col="prediction_lower",
+            upper_col="prediction_upper",
+            group_col="demand_pattern",
+        )
+        metrics.update(
+            {
+                "method": "lightgbm_quantile_raw",
+                "enabled": False,
+                "nominal_coverage_target": None,
+            }
+        )
+        return backtest, metrics
+
+    target = float(config.get("nominal_coverage_target", 0.90))
+    if not 0.0 < target < 1.0:
+        raise ValueError("interval_calibration.nominal_coverage_target must be 0-1")
+
+    calibration_mask, evaluation_mask, periods = _interval_evaluation_split(
+        backtest,
+        calibration_fraction=float(config.get("calibration_fraction", 0.50)),
+    )
+    calibrated = backtest.copy()
+    calibrated["calibration_abs_error"] = (
+        calibrated[TARGET_COLUMN] - calibrated["prediction"]
+    ).abs()
+
+    calibration = calibrated.loc[calibration_mask]
+    overall_width = _higher_quantile(calibration["calibration_abs_error"], target)
+    min_group_rows = int(config.get("min_group_rows", 100))
+    group_widths: dict[str, float] = {}
+    for pattern, group_df in calibration.groupby("demand_pattern", observed=True):
+        if len(group_df) >= min_group_rows:
+            group_widths[str(pattern)] = _higher_quantile(
+                group_df["calibration_abs_error"],
+                target,
+            )
+
+    calibrated["calibration_width"] = (
+        calibrated["demand_pattern"].astype(str).map(group_widths).fillna(overall_width)
+    )
+    calibrated["prediction_lower"] = (
+        calibrated["prediction"] - calibrated["calibration_width"]
+    ).clip(lower=0.0)
+    calibrated["prediction_upper"] = (
+        calibrated["prediction"] + calibrated["calibration_width"]
+    )
+
+    evaluation = calibrated.loc[evaluation_mask].copy()
+    metrics = interval_coverage_metrics(
+        evaluation,
+        actual_col=TARGET_COLUMN,
+        lower_col="prediction_lower",
+        upper_col="prediction_upper",
+        group_col="demand_pattern",
+    )
+    metrics.update(
+        {
+            "method": config.get(
+                "method",
+                "split_empirical_abs_residual_by_demand_pattern",
+            ),
+            "enabled": True,
+            "nominal_coverage_target": target,
+            "overall_calibration_width": overall_width,
+            "calibration_width_by_demand_pattern": group_widths,
+            "calibration_rows": int(calibration_mask.sum()),
+            "evaluation_rows": int(evaluation_mask.sum()),
+            **periods,
+            "coverage_width_tradeoff_notes": (
+                "Residual widths are estimated on the first temporal half of the "
+                "holdout and evaluated on the later half. Wider intervals improve "
+                "coverage but reduce sharpness; metrics remain synthetic."
+            ),
+        }
+    )
+
+    min_coverage = float(config.get("minimum_acceptable_coverage", 0.85))
+    min_eval_rows = int(config.get("minimum_evaluation_rows_for_guard", 1000))
+    if metrics["rows"] >= min_eval_rows and metrics["coverage"] < min_coverage:
+        raise RuntimeError(
+            "Calibrated interval coverage fell below the configured acceptable "
+            f"floor: {metrics['coverage']:.3f} < {min_coverage:.3f}"
+        )
+
+    return calibrated, metrics
+
+
+def _select_newsvendor_forecast(
+    backtest: pd.DataFrame,
+    *,
+    understock: pd.Series,
+    overstock: pd.Series,
+    available_alphas: list[float],
+) -> tuple[list[float], list[float], list[float]]:
+    q_values: list[float] = []
+    selected_alphas: list[float] = []
+    selected_forecasts: list[float] = []
+
+    for idx, row in backtest.iterrows():
+        q_value = newsvendor_quantile(
+            float(understock.loc[idx]),
+            float(overstock.loc[idx]),
+        )
+        selected_alpha = nearest_quantile_alpha(q_value, available_alphas)
+        q_values.append(q_value)
+        selected_alphas.append(selected_alpha)
+        selected_forecasts.append(float(row[_quantile_column(selected_alpha)]))
+
+    return q_values, selected_alphas, selected_forecasts
+
+
 def _build_backtest_frame(
     test_df: pd.DataFrame,
     quantile_predictions: pd.DataFrame,
+    statsforecast_predictions: np.ndarray | None,
     parts_metadata: pd.DataFrame,
     *,
     available_alphas: list[float],
     holding_cost_rate: float,
     understock_cost_multiplier: float,
 ) -> pd.DataFrame:
-    intervals = enforce_prediction_interval_monotonicity(quantile_predictions)
+    raw_intervals = enforce_prediction_interval_monotonicity(quantile_predictions)
 
     backtest = test_df[
-        ["part_id", "date", TARGET_COLUMN, "lag_7", "demand_pattern"]
+        [
+            "part_id",
+            "date",
+            TARGET_COLUMN,
+            "lag_7",
+            "rolling_mean_7",
+            "rolling_mean_28",
+            "demand_pattern",
+        ]
     ].copy()
     backtest["part_id"] = backtest["part_id"].astype(str)
     backtest["date"] = pd.to_datetime(backtest["date"])
+    raw_intervals = raw_intervals.rename(
+        columns={
+            "prediction_lower": "raw_prediction_lower",
+            "prediction_upper": "raw_prediction_upper",
+        }
+    )
     backtest = pd.concat(
-        [backtest.reset_index(drop=True), intervals.reset_index(drop=True)],
+        [backtest.reset_index(drop=True), raw_intervals.reset_index(drop=True)],
         axis=1,
     )
+    backtest["prediction_lower"] = backtest["raw_prediction_lower"]
+    backtest["prediction_upper"] = backtest["raw_prediction_upper"]
     quantile_predictions = quantile_predictions.reset_index(drop=True)
     for alpha in available_alphas:
         col = _quantile_column(alpha)
         backtest[col] = quantile_predictions[col].clip(lower=0.0)
 
-    backtest = backtest.merge(parts_metadata, on="part_id", how="left")
+    metadata_for_backtest = parts_metadata.drop(
+        columns=["demand_pattern"],
+        errors="ignore",
+    )
+    backtest = backtest.merge(metadata_for_backtest, on="part_id", how="left")
     backtest["unit_cost"] = pd.to_numeric(backtest["unit_cost"], errors="coerce")
     backtest["unit_cost_nonnegative"] = (
         backtest["unit_cost"].clip(lower=0.0).fillna(0.0)
@@ -176,56 +382,165 @@ def _build_backtest_frame(
         backtest["unit_cost_nonnegative"] * holding_cost_rate / 365.0
     )
 
-    q_values = []
-    selected_alphas = []
-    selected_forecasts = []
-    for row in backtest.itertuples(index=False):
-        q_value = newsvendor_quantile(
-            float(row.understock_cost_per_unit),
-            float(row.overstock_cost_per_unit),
-        )
-        selected_alpha = nearest_quantile_alpha(q_value, available_alphas)
-        q_values.append(q_value)
-        selected_alphas.append(selected_alpha)
-        selected_forecasts.append(getattr(row, _quantile_column(selected_alpha)))
+    q_values, selected_alphas, selected_forecasts = _select_newsvendor_forecast(
+        backtest,
+        understock=backtest["understock_cost_per_unit"],
+        overstock=backtest["overstock_cost_per_unit"],
+        available_alphas=available_alphas,
+    )
 
     backtest["newsvendor_quantile"] = q_values
     backtest["selected_quantile_alpha"] = selected_alphas
     backtest["selected_quantile_forecast"] = selected_forecasts
-    backtest["naive_policy_forecast"] = backtest["lag_7"].clip(lower=0.0)
+    backtest["lag_7_policy_forecast"] = backtest["lag_7"].clip(lower=0.0)
+    backtest["moving_average_7_policy_forecast"] = backtest["rolling_mean_7"].clip(
+        lower=0.0
+    )
+    backtest["moving_average_28_policy_forecast"] = backtest["rolling_mean_28"].clip(
+        lower=0.0
+    )
+    if statsforecast_predictions is not None:
+        backtest["statsforecast_policy_forecast"] = np.maximum(
+            np.asarray(statsforecast_predictions, dtype=float),
+            0.0,
+        )
     return backtest
 
 
-def _simulate_cost_metrics(backtest: pd.DataFrame) -> dict[str, float | bool]:
+def _available_baseline_policies(
+    backtest: pd.DataFrame,
+    configured_policies: list[str],
+) -> dict[str, str]:
+    policies: dict[str, str] = {}
+    for policy in configured_policies:
+        col = f"{policy}_policy_forecast"
+        if col in backtest.columns:
+            policies[policy] = col
+    if len(policies) < 2:
+        warnings.warn(
+            "Fewer than two cost baselines are available; cost comparison is weak",
+            stacklevel=2,
+        )
+    return policies
+
+
+def _reduction_pct(baseline_total: float, optimized_total: float) -> float:
+    if baseline_total <= 0:
+        return 0.0
+    return float(((baseline_total - optimized_total) / baseline_total) * 100.0)
+
+
+def _simulate_one_cost_scenario(
+    backtest: pd.DataFrame,
+    *,
+    baseline_policies: dict[str, str],
+    understock: pd.Series,
+    overstock: pd.Series,
+    available_alphas: list[float],
+) -> dict[str, Any]:
+    _, selected_alphas, selected_forecasts = _select_newsvendor_forecast(
+        backtest,
+        understock=understock,
+        overstock=overstock,
+        available_alphas=available_alphas,
+    )
+    selected_forecast = pd.Series(selected_forecasts, index=backtest.index)
     actual = backtest[TARGET_COLUMN]
-    optimized = backtest["selected_quantile_forecast"]
-    naive = backtest["naive_policy_forecast"]
-    understock = backtest["understock_cost_per_unit"]
-    overstock = backtest["overstock_cost_per_unit"]
 
     optimized_total = simulated_inventory_cost(
         actual,
-        optimized,
+        selected_forecast,
         understock,
         overstock,
     )
-    naive_total = simulated_inventory_cost(actual, naive, understock, overstock)
-    cost_reduction_pct = (
-        ((naive_total - optimized_total) / naive_total) * 100.0
-        if naive_total > 0
-        else 0.0
-    )
+    baseline_totals = {
+        name: simulated_inventory_cost(actual, backtest[col], understock, overstock)
+        for name, col in baseline_policies.items()
+    }
+    best_baseline_name = min(baseline_totals, key=baseline_totals.get)
+    best_baseline_total = baseline_totals[best_baseline_name]
+    reductions = {
+        name: _reduction_pct(total, optimized_total)
+        for name, total in baseline_totals.items()
+    }
 
     return {
-        "naive_total_cost": naive_total,
         "optimized_total_cost": optimized_total,
-        "cost_reduction_pct": float(cost_reduction_pct),
-        "optimized_cost_lt_naive": bool(optimized_total < naive_total),
+        "baseline_total_costs": baseline_totals,
+        "cost_reduction_pct_by_baseline": reductions,
+        "best_baseline": best_baseline_name,
+        "best_baseline_total_cost": best_baseline_total,
+        "cost_reduction_vs_best_baseline_pct": _reduction_pct(
+            best_baseline_total,
+            optimized_total,
+        ),
+        "optimized_cost_lt_best_baseline": bool(optimized_total < best_baseline_total),
+        "median_selected_quantile_alpha": float(np.median(selected_alphas)),
+    }
+
+
+def _simulate_cost_metrics(
+    backtest: pd.DataFrame,
+    *,
+    baseline_policy_names: list[str],
+    available_alphas: list[float],
+    sensitivity_ratios: dict[str, float],
+    large_reduction_warning_threshold_pct: float,
+) -> dict[str, Any]:
+    baseline_policies = _available_baseline_policies(backtest, baseline_policy_names)
+    if not baseline_policies:
+        raise RuntimeError("No cost baselines are available")
+
+    main = _simulate_one_cost_scenario(
+        backtest,
+        baseline_policies=baseline_policies,
+        understock=backtest["understock_cost_per_unit"],
+        overstock=backtest["overstock_cost_per_unit"],
+        available_alphas=available_alphas,
+    )
+
+    sensitivity: dict[str, Any] = {}
+    for label, ratio in sensitivity_ratios.items():
+        overstock = backtest["overstock_cost_per_unit"]
+        understock = overstock * float(ratio)
+        sensitivity[label] = {
+            "understock_to_overstock_ratio": float(ratio),
+            **_simulate_one_cost_scenario(
+                backtest,
+                baseline_policies=baseline_policies,
+                understock=understock,
+                overstock=overstock,
+                available_alphas=available_alphas,
+            ),
+        }
+
+    warnings_list: list[str] = []
+    if (
+        main["cost_reduction_vs_best_baseline_pct"]
+        >= large_reduction_warning_threshold_pct
+    ):
+        warnings_list.append(
+            "large synthetic improvement; sensitive to baseline and cost assumptions"
+        )
+
+    lag_7_total = main["baseline_total_costs"].get("lag_7")
+    lag_7_reduction = main["cost_reduction_pct_by_baseline"].get("lag_7")
+
+    return {
+        **main,
+        "baseline_policies": sorted(baseline_policies),
+        "baseline_count": len(baseline_policies),
+        "sensitivity_by_understock_to_overstock_ratio": sensitivity,
+        "warnings": warnings_list,
         "selected_pinball_loss": pinball_loss(
-            actual,
-            optimized,
+            backtest[TARGET_COLUMN],
+            backtest["selected_quantile_forecast"],
             backtest["newsvendor_quantile"],
         ),
+        # Backward-compatible aliases for the original PR-04 lag-7 comparison.
+        "naive_total_cost": lag_7_total,
+        "cost_reduction_pct": main["cost_reduction_vs_best_baseline_pct"],
+        "lag_7_cost_reduction_pct": lag_7_reduction,
     }
 
 
@@ -412,20 +727,23 @@ def _statsforecast_interval_reference(
                 "skipped_reason": "no_native_interval_columns_returned",
                 "model_usage": model_usage,
             }
-        covered = (
-            (interval_df.loc[valid, "y"] >= interval_df.loc[valid, "yhat_lower"])
-            & (interval_df.loc[valid, "y"] <= interval_df.loc[valid, "yhat_upper"])
-        )
-        width = (
-            interval_df.loc[valid, "yhat_upper"]
-            - interval_df.loc[valid, "yhat_lower"]
+        metric_df = interval_df.loc[valid].copy()
+        metric_df["demand_pattern"] = metric_df["part_id"].map(parts_patterns)
+        metrics = interval_coverage_metrics(
+            metric_df,
+            actual_col="y",
+            lower_col="yhat_lower",
+            upper_col="yhat_upper",
+            group_col="demand_pattern",
         )
         return {
             "enabled": True,
             "level": level,
-            "coverage": float(covered.mean()),
-            "average_width": float(width.mean()),
-            "rows": int(valid.sum()),
+            "method": "statsforecast_native_conformal_reference",
+            "coverage": metrics["coverage"],
+            "average_width": metrics["average_width"],
+            "by_demand_pattern": metrics.get("by_demand_pattern", {}),
+            "rows": metrics["rows"],
             "model_usage": model_usage,
         }
     except Exception as exc:
@@ -517,6 +835,16 @@ def run_decision_intelligence(
     understock_multiplier = float(
         decision_cfg["cost"]["understock_cost_multiplier"]
     )
+    cost_baseline_policies = list(decision_cfg["cost"].get("baseline_policies", []))
+    sensitivity_ratios = {
+        str(k): float(v)
+        for k, v in decision_cfg["cost"]
+        .get("sensitivity_understock_to_overstock_ratios", {})
+        .items()
+    }
+    large_reduction_threshold = float(
+        decision_cfg["cost"].get("large_reduction_warning_threshold_pct", 50.0)
+    )
     risk_low_threshold = float(decision_cfg["risk"]["low_threshold"])
     risk_high_threshold = float(decision_cfg["risk"]["high_threshold"])
 
@@ -575,15 +903,57 @@ def run_decision_intelligence(
             test_df,
             quantile_features,
         )
+        sf_cfg = config.get("statsforecast", {})
+        statsforecast_predictions: np.ndarray | None = None
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                statsforecast_predictions, _ = fit_predict_statsforecast(
+                    train_df,
+                    test_df,
+                    parts_patterns,
+                    season_length=sf_cfg.get("season_length", 7),
+                    regular_model_names=sf_cfg.get("regular_models"),
+                    intermittent_model_names=sf_cfg.get("intermittent_models"),
+                )
+        except Exception as exc:
+            logger.warning("StatsForecast cost baseline skipped: %s", exc)
+            if "statsforecast" in cost_baseline_policies:
+                cost_baseline_policies.remove("statsforecast")
+
         backtest = _build_backtest_frame(
             test_df,
             quantile_predictions,
+            statsforecast_predictions,
             parts_metadata,
             available_alphas=alphas,
             holding_cost_rate=holding_cost_rate,
             understock_cost_multiplier=understock_multiplier,
         )
-        cost_metrics = _simulate_cost_metrics(backtest)
+        raw_interval_metrics = interval_coverage_metrics(
+            backtest,
+            actual_col=TARGET_COLUMN,
+            lower_col="raw_prediction_lower",
+            upper_col="raw_prediction_upper",
+            group_col="demand_pattern",
+        )
+        raw_interval_metrics.update(
+            {
+                "method": "lightgbm_quantile_p10_p90",
+                "nominal_coverage_target": 0.80,
+            }
+        )
+        backtest, calibrated_interval_metrics = _apply_calibrated_intervals(
+            backtest,
+            decision_cfg["interval_calibration"],
+        )
+        cost_metrics = _simulate_cost_metrics(
+            backtest,
+            baseline_policy_names=cost_baseline_policies,
+            available_alphas=alphas,
+            sensitivity_ratios=sensitivity_ratios,
+            large_reduction_warning_threshold_pct=large_reduction_threshold,
+        )
 
         recommendations = _build_recommendations(
             train_df,
@@ -630,7 +1000,26 @@ def run_decision_intelligence(
                 ),
             },
             "cost_metrics": cost_metrics,
+            "interval_metrics": {
+                "nominal_coverage_target": calibrated_interval_metrics[
+                    "nominal_coverage_target"
+                ],
+                "realized_coverage_overall": calibrated_interval_metrics["coverage"],
+                "realized_coverage_by_demand_pattern": calibrated_interval_metrics.get(
+                    "by_demand_pattern",
+                    {},
+                ),
+                "average_interval_width": calibrated_interval_metrics[
+                    "average_width"
+                ],
+                "coverage_width_tradeoff_notes": calibrated_interval_metrics[
+                    "coverage_width_tradeoff_notes"
+                ],
+                "calibrated_empirical": calibrated_interval_metrics,
+                "lightgbm_quantile_reference": raw_interval_metrics,
+            },
             "statsforecast_interval_reference": sf_reference,
+            "warnings": cost_metrics["warnings"],
             "limitations": [
                 "synthetic data only",
                 "simulated cost backtest only",
@@ -658,14 +1047,38 @@ def run_decision_intelligence(
         if mlflow_enabled:
             mlflow.log_metrics(
                 {
-                    "naive_total_cost": float(cost_metrics["naive_total_cost"]),
+                    "lag_7_total_cost": float(cost_metrics["naive_total_cost"]),
                     "optimized_total_cost": float(cost_metrics["optimized_total_cost"]),
                     "cost_reduction_pct": float(cost_metrics["cost_reduction_pct"]),
+                    "cost_reduction_vs_best_baseline_pct": float(
+                        cost_metrics["cost_reduction_vs_best_baseline_pct"]
+                    ),
                     "selected_pinball_loss": float(
                         cost_metrics["selected_pinball_loss"]
                     ),
+                    "calibrated_interval_coverage": float(
+                        calibrated_interval_metrics["coverage"]
+                    ),
+                    "calibrated_interval_average_width": float(
+                        calibrated_interval_metrics["average_width"]
+                    ),
+                    "raw_lightgbm_interval_coverage": float(
+                        raw_interval_metrics["coverage"]
+                    ),
+                    "raw_lightgbm_interval_average_width": float(
+                        raw_interval_metrics["average_width"]
+                    ),
                 }
             )
+            for name, total in cost_metrics["baseline_total_costs"].items():
+                mlflow.log_metric(f"{name}_total_cost", float(total))
+            for name, reduction in cost_metrics[
+                "cost_reduction_pct_by_baseline"
+            ].items():
+                mlflow.log_metric(
+                    f"cost_reduction_vs_{name}_pct",
+                    float(reduction),
+                )
             if "coverage" in sf_reference:
                 mlflow.log_metric(
                     "statsforecast_interval_coverage",
