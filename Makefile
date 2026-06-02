@@ -9,7 +9,7 @@ OUTPUT_DIR := data/synthetic/output
 SEED := 42
 INVFORGE_API_PORT ?= 8001
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel lint test secrets-scan ci
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke lint test secrets-scan ci
 
 help:
 	@echo "InvForge — available targets:"
@@ -26,6 +26,9 @@ help:
 	@echo "  dvc-repro       Reproduce the DVC data pipeline"
 	@echo "  train-ml        Train PR-03 demand forecast baselines"
 	@echo "  decision-intel  Generate PR-04 inventory recommendations"
+	@echo "  mlops-loop      Run PR-05 local MLOps loop"
+	@echo "  dashboard       Launch PR-06 Streamlit AI Operations dashboard"
+	@echo "  dashboard-smoke Non-interactive dashboard loader smoke check"
 	@echo "  lint            Run Ruff linter"
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
@@ -86,6 +89,13 @@ decision-intel: generate-data
 # the champion model and PR-04 cost context are available.
 mlops-loop: generate-data
 	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true BENTOML_DO_NOT_TRACK=true $(UV) run --group ml --group mlops python -m mlops.loop --config mlops/config.yaml --ml-config ml/config.yaml
+
+# PR-06 AI Operations Dashboard (read-only artifact visualization).
+dashboard:
+	$(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true
+
+dashboard-smoke:
+	$(UV) run --group dashboard python -m dashboard.smoke
 
 lint:
 	$(UV) run ruff check .

@@ -46,6 +46,7 @@ ml/               Models, features, training (PR-03+)
 mlops/            MLflow, Evidently, ZenML (PR-05+)
 data/synthetic/   Deterministic synthetic inventory generator
 feast/            Feature store definitions (PR-02+)
+dashboard/        Streamlit AI Operations dashboard (PR-06)
 observability/    Metrics, dashboards (PR-07+)
 security/         Audit, risk scoring (PR-08+)
 deploy/           Cloud/k8s profiles (PR-10+)
@@ -141,7 +142,34 @@ simulated cost-aware metrics. Artifacts are written under `artifacts/decision/`
 and logged to local MLflow. Results are **synthetic simulated backtest only**,
 not production savings claims. See `docs/decision-intelligence.md`.
 
-### 7. Run the AI Operations API
+### 7. Run the local MLOps loop (PR-05)
+
+```bash
+uv sync --group dev --group ml --group mlops
+make mlops-loop
+```
+
+See `docs/mlops.md` for artifact paths and limitations.
+
+### 8. Launch the AI Operations Dashboard (PR-06)
+
+Generate artifacts first (steps 4–7 above), then:
+
+```bash
+uv sync --group dev --group dashboard
+make UV="uv" dashboard
+```
+
+Non-interactive loader smoke check:
+
+```bash
+make UV="uv" dashboard-smoke
+```
+
+The dashboard reads PR-03/04/05 artifacts only (no pipeline triggers). See
+`docs/dashboard.md` for section details, missing-artifact behavior, and scope.
+
+### 9. Run the AI Operations API
 
 ```bash
 cp api/.env.example api/.env
@@ -188,6 +216,8 @@ Raw snapshots are written to `data/raw/inventree/`; normalized CSVs are written 
 | `make train-ml` | Train PR-03 demand forecast baselines |
 | `make decision-intel` | Generate PR-04 inventory recommendations |
 | `make mlops-loop` | Run PR-05 local MLOps loop (drift, registry, champ/chal, BentoML) |
+| `make dashboard` | Launch PR-06 Streamlit AI Operations dashboard |
+| `make dashboard-smoke` | Non-interactive dashboard loader smoke check |
 | `make lint` | Run Ruff linter |
 | `make test` | Run pytest |
 | `make secrets-scan` | Run detect-secrets scan |
@@ -202,7 +232,7 @@ Raw snapshots are written to `data/raw/inventree/`; normalized CSVs are written 
 | PR-03 | ML baseline — LightGBM, Prophet, Croston/SBA, MLflow |
 | PR-04 | Decision intelligence — safety stock, EOQ, ROP, quantile loss |
 | PR-05 | MLOps loop — Evidently, model registry, BentoML |
-| PR-06 | AI Operations Dashboard |
+| **PR-06** | AI Operations Dashboard — Streamlit local control tower |
 | PR-07 | Observability — Prometheus, Grafana |
 | PR-08 | Defensive security |
 | PR-09 | Retraining pipeline — ZenML, Optuna |
