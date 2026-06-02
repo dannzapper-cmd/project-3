@@ -154,7 +154,7 @@ See `PROJECT_3_INVFORGE_MASTER_CONTEXT.md` for full project context.
 ## What's NOT in PR-01
 
 - No InvenTree API integration yet
-- No MLflow, Feast, Evidently, or ML models
+- No MLflow, Evidently, or ML models
 - No dashboard, Grafana, Kubernetes, or cloud deploy
 - No seeding of synthetic data into InvenTree (CSV generator only)
 
