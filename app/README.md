@@ -23,7 +23,7 @@ Future InvForge AI sidecar services will be added in separate compose profiles o
 ```bash
 cp .env.example .env
 docker compose up -d
-docker compose run --rm inventree-server invoke update
+docker compose run --rm -T inventree-server invoke update
 ```
 
 See the root [README.md](../README.md) for full instructions.
