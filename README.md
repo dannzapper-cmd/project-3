@@ -127,7 +127,21 @@ make train-ml
 
 This trains a global **LightGBM** model and **StatsForecast** baselines (AutoETS/SeasonalNaive for regular items, Croston/CrostonSBA for intermittent). Metrics and artifacts are logged to local `mlruns/`. See `docs/runbooks/pr-03-ml-baseline.md` and `docs/model-cards/demand_forecast_baseline.md`.
 
-### 6. Run the AI Operations API
+### 6. Generate decision intelligence recommendations (PR-04)
+
+```bash
+uv sync --group dev --group ml
+make decision-intel
+```
+
+This trains additive LightGBM quantile models (`p10/p50/p90`) on the existing
+temporal backtest and converts forecasts into synthetic inventory recommendations:
+safety stock, reorder point, EOQ, prediction intervals, stockout risk, and
+simulated cost-aware metrics. Artifacts are written under `artifacts/decision/`
+and logged to local MLflow. Results are **synthetic simulated backtest only**,
+not production savings claims. See `docs/decision-intelligence.md`.
+
+### 7. Run the AI Operations API
 
 ```bash
 cp api/.env.example api/.env
@@ -171,6 +185,8 @@ Raw snapshots are written to `data/raw/inventree/`; normalized CSVs are written 
 | `make generate-data` | Generate synthetic inventory CSVs |
 | `make validate-data` | Validate synthetic and processed data with Pandera |
 | `make dvc-repro` | Run DVC generate/validate stages |
+| `make train-ml` | Train PR-03 demand forecast baselines |
+| `make decision-intel` | Generate PR-04 inventory recommendations |
 | `make lint` | Run Ruff linter |
 | `make test` | Run pytest |
 | `make secrets-scan` | Run detect-secrets scan |

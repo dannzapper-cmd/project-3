@@ -76,17 +76,56 @@ Values from local run `6a79e86d044343b78e6bd305306f6586`:
 - Stock and reorder fields excluded from features
 - No target-derived features from the forecast horizon
 
+## PR-04 Decision Intelligence Add-on
+
+PR-04 adds a separate decision intelligence layer documented in
+[`docs/decision-intelligence.md`](../decision-intelligence.md). The PR-03
+baseline training behavior remains unchanged.
+
+- LightGBM quantile regressors (`p10/p50/p90`) are trained via additive helper
+  functions for decision intervals and cost-aware backtesting.
+- Raw LightGBM p10/p90 and StatsForecast native conformal intervals are reported
+  as references. The primary PR-04B interval metric is a split empirical
+  residual calibration targeting 90% nominal coverage on the temporal holdout.
+- Calibrated interval coverage and average width are reported overall and by
+  `demand_pattern`. These are synthetic backtest diagnostics, not production
+  guarantees.
+- Default service level is `0.95`, with
+  `z_score = scipy.stats.norm.ppf(service_level)`.
+- Safety stock assumes fixed lead time and demand variance only.
+- EOQ defaults are synthetic assumptions:
+  - `order_cost = 50.0` USD
+  - `annual_holding_cost_per_unit = unit_cost * 0.20`
+- Stockout risk uses a Normal approximation during lead time.
+- Cost simulation compares against multiple baselines (`lag_7`,
+  `moving_average_7`, `moving_average_28`, and StatsForecast when available)
+  and reports low / medium / high understock-to-overstock sensitivity scenarios.
+- PR-04C adds deterministic policy grid search by `demand_pattern`, selecting
+  service level, safety-stock multiplier, and order-quantity multiplier on a
+  policy calibration window and reporting final metrics on a later policy
+  evaluation window.
+- Large synthetic cost reductions are flagged as sensitive to baseline and cost
+  assumptions. They are not real-world savings claims.
+
 ## Known Limitations
 
 - Synthetic data only; metrics do not reflect live InvenTree demand
-- No prediction intervals or quantile forecasts (PR-04)
+- PR-04 prediction intervals and cost-aware metrics are synthetic decision
+  artifacts, not production inventory policies
+- Interval calibration uses the existing temporal holdout split into calibration
+  and evaluation slices; a future independent backtest would be required for a
+  stronger out-of-sample coverage claim
+- Policy optimization uses a simplified daily policy-quantity approximation,
+  not a production inventory simulator with purchase orders, receipts, or stock
+  ledger dynamics
+- Cost reduction depends on synthetic demand, policy assumptions, and configured
+  understock/overstock scenarios
 - StatsForecast uses the first configured model column per pattern batch (not ensembled)
 - Short-history series may cause AutoETS failures on very small subsets (smoke tests use 90-day windows)
 - MLflow 3.x requires `MLFLOW_ALLOW_FILE_STORE=true` for local `mlruns/` tracking
 
 ## Next Steps
 
-- **PR-04:** Safety stock, EOQ, reorder point, quantile loss, cost-aware forecasting, prediction intervals
 - **PR-05:** Evidently drift monitoring, model registry, BentoML serving
 - **PR-11 Senior Edition:** Foundation model benchmarks (Chronos-2/TimesFM) and TFT/N-BEATS comparison
 
