@@ -37,3 +37,30 @@ mlflow:
 shap:
   sample_size: 200
   random_state: 42
+
+decision:
+  artifact_dir: artifacts/decision
+  service_level: 0.95
+  quantile_alphas:
+    - 0.1
+    - 0.5
+    - 0.9
+  # PR-04 inventory metadata is applied after forecasting; lead time is excluded
+  # from the decision-layer quantile models without changing PR-03 baseline behavior.
+  forecast_excluded_features:
+    - lead_time_days
+  eoq:
+    order_cost: 50.0
+    holding_cost_rate: 0.20
+  cost:
+    understock_cost_multiplier: 1.0
+    naive_policy: lag_7
+  risk:
+    low_threshold: 0.20
+    high_threshold: 0.50
+  statsforecast_interval_reference:
+    enabled: true
+    level: 80
+  mlflow:
+    experiment_name: decision_intelligence
+    enabled: true

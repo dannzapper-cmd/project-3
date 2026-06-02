@@ -51,3 +51,6 @@ htmlcov/
 
 # MLflow local tracking (PR-03+)
 mlruns/
+
+# Generated decision intelligence artifacts (PR-04+)
+artifacts/

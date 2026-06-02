@@ -1,0 +1,153 @@
+"""Tests for PR-04 decision intelligence."""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+
+import pandas as pd
+import pytest
+import yaml
+
+from ml.decision import (
+    calculate_eoq,
+    calculate_reorder_point,
+    calculate_safety_stock,
+    enforce_prediction_interval_monotonicity,
+    newsvendor_quantile,
+    pinball_loss,
+    risk_level,
+    service_level_to_z_score,
+    stockout_risk_normal,
+    validate_forecast_feature_columns,
+)
+from ml.decision_intelligence import run_decision_intelligence
+from ml.features import build_features, drop_rows_with_incomplete_features
+from ml.models.lightgbm_model import train_quantile_models
+from ml.split import temporal_train_test_split
+
+
+def test_safety_stock_formula():
+    z_score = service_level_to_z_score(0.95)
+    assert z_score == pytest.approx(1.6448536269514722)
+    assert calculate_safety_stock(z_score, 2.0, 9.0) == pytest.approx(
+        z_score * 2.0 * 3.0
+    )
+
+
+def test_reorder_point_formula():
+    assert calculate_reorder_point(40.0, 12.5) == pytest.approx(52.5)
+
+
+def test_eoq_formula_normal_and_invalid_inputs():
+    assert calculate_eoq(1000.0, 50.0, 2.0) == pytest.approx(
+        math.sqrt((2.0 * 1000.0 * 50.0) / 2.0)
+    )
+    with pytest.warns(UserWarning, match="Cannot compute EOQ"):
+        assert math.isnan(calculate_eoq(1000.0, 0.0, 2.0))
+
+
+def test_prediction_interval_monotonicity():
+    raw = pd.DataFrame({"q10": [10.0, 5.0], "q50": [8.0, 7.0], "q90": [9.0, 6.0]})
+    intervals = enforce_prediction_interval_monotonicity(raw)
+    assert (intervals["prediction_lower"] <= intervals["prediction"]).all()
+    assert (intervals["prediction"] <= intervals["prediction_upper"]).all()
+
+
+def test_stockout_risk_bounded_and_thresholds():
+    risk = stockout_risk_normal(
+        forecast_mean_daily=10.0,
+        demand_std_daily=2.0,
+        lead_time_days=4.0,
+        current_stock=35.0,
+    )
+    assert 0.0 <= risk <= 1.0
+    assert risk_level(0.19) == "low"
+    assert risk_level(0.20) == "medium"
+    assert risk_level(0.50) == "medium"
+    assert risk_level(0.51) == "high"
+
+
+def test_newsvendor_quantile_and_pinball_loss():
+    assert newsvendor_quantile(8.0, 2.0) == pytest.approx(0.8)
+    assert pinball_loss([10.0, 5.0], [8.0, 7.0], 0.8) == pytest.approx(1.0)
+
+
+def test_anti_leakage_guard_rejects_decision_fields(demand_table):
+    forbidden = ["current_stock", "reorder_point", "safety_stock", "unit_cost"]
+    for col in forbidden:
+        assert col not in demand_table.columns
+
+    with pytest.raises(ValueError, match="Decision/inventory fields"):
+        validate_forecast_feature_columns(["lag_7", "unit_cost"])
+
+
+def test_quantile_models_can_exclude_lead_time(demand_table):
+    featured = drop_rows_with_incomplete_features(build_features(demand_table))
+    train_df, _ = temporal_train_test_split(featured, train_fraction=0.75)
+    small_items = sorted(train_df["part_id"].unique())[:4]
+    small_train = train_df[train_df["part_id"].isin(small_items)]
+
+    _, features = train_quantile_models(
+        small_train,
+        {"n_estimators": 5, "random_state": 42, "verbose": -1},
+        alphas=[0.1, 0.5, 0.9],
+        excluded_features=["lead_time_days"],
+    )
+
+    assert "lead_time_days" not in features
+    validate_forecast_feature_columns(features)
+
+
+@pytest.fixture
+def decision_config(tmp_path, synthetic_dir) -> dict:
+    config = yaml.safe_load(Path("ml/config.yaml").read_text(encoding="utf-8"))
+    config["data"]["synthetic_dir"] = str(synthetic_dir)
+    config["mlflow"]["tracking_uri"] = str(tmp_path / "mlruns")
+    config["lightgbm"]["n_estimators"] = 20
+    config["decision"]["artifact_dir"] = str(tmp_path / "artifacts" / "decision")
+    config["decision"]["mlflow"]["enabled"] = False
+    config["decision"]["statsforecast_interval_reference"]["enabled"] = False
+    return config
+
+
+@pytest.fixture
+def decision_result(decision_config) -> dict:
+    return run_decision_intelligence(decision_config, max_items=12, max_days=90)
+
+
+def test_decision_artifact_schema_and_bounds(decision_result):
+    recommendations = pd.read_csv(
+        decision_result["artifacts"]["recommendations_csv"],
+    )
+    expected_columns = {
+        "part_id",
+        "demand_pattern",
+        "service_level",
+        "z_score",
+        "lead_time_days",
+        "current_stock",
+        "unit_cost",
+        "forecast_mean_daily",
+        "prediction_lower",
+        "prediction",
+        "prediction_upper",
+        "safety_stock",
+        "reorder_point",
+        "eoq",
+        "stockout_risk",
+        "risk_level",
+        "newsvendor_quantile",
+        "selected_quantile_alpha",
+    }
+    assert expected_columns.issubset(recommendations.columns)
+    assert (recommendations["prediction_lower"] <= recommendations["prediction"]).all()
+    assert (recommendations["prediction"] <= recommendations["prediction_upper"]).all()
+    assert recommendations["stockout_risk"].between(0.0, 1.0).all()
+    assert set(recommendations["risk_level"]).issubset({"low", "medium", "high"})
+
+
+def test_headline_synthetic_cost_metric(decision_result):
+    metrics = decision_result["cost_metrics"]
+    assert metrics["optimized_total_cost"] < metrics["naive_total_cost"]
+    assert metrics["cost_reduction_pct"] > 0.0

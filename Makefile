@@ -9,7 +9,7 @@ OUTPUT_DIR := data/synthetic/output
 SEED := 42
 INVFORGE_API_PORT ?= 8001
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro lint test secrets-scan ci
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel lint test secrets-scan ci
 
 help:
 	@echo "InvForge — available targets:"
@@ -24,6 +24,8 @@ help:
 	@echo "  generate-data   Generate deterministic synthetic inventory CSVs"
 	@echo "  validate-data   Validate synthetic and processed data with Pandera"
 	@echo "  dvc-repro       Reproduce the DVC data pipeline"
+	@echo "  train-ml        Train PR-03 demand forecast baselines"
+	@echo "  decision-intel  Generate PR-04 inventory recommendations"
 	@echo "  lint            Run Ruff linter"
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
@@ -74,6 +76,9 @@ dvc-repro:
 
 train-ml: generate-data
 	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true $(UV) run --group ml python -m ml.train --config ml/config.yaml
+
+decision-intel: generate-data
+	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true $(UV) run --group ml python -m ml.decision_intelligence --config ml/config.yaml
 
 lint:
 	$(UV) run ruff check .
