@@ -20,6 +20,8 @@ def _build_inventree_client(settings: Settings) -> InvenTreeClient:
     return InvenTreeClient(
         base_url=settings.inventree_base_url,
         api_token=settings.inventree_api_token,
+        username=settings.inventree_username,
+        password=settings.inventree_password,
         timeout_seconds=settings.inventree_timeout_seconds,
     )
 
@@ -53,8 +55,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "status": "ready",
             "inventree_base_url": settings.inventree_base_url,
-            "inventree_token_configured": settings.inventree_api_token
-            not in {"", "replace-me"},
+            "inventree_token_configured": bool(
+                settings.inventree_api_token
+                and settings.inventree_api_token not in {"replace-me"}
+            ),
+            "inventree_basic_auth_configured": bool(
+                settings.inventree_username
+                and settings.inventree_password
+                and settings.inventree_password
+                not in {"replace-me", "replace-me-local-only"}
+            ),
             "data_dir": str(settings.data_dir),
             "local_data": summary,
         }

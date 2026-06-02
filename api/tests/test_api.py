@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import pytest
 import respx
-from httpx import AsyncClient, Response
+from httpx import ASGITransport, AsyncClient, Response
+
+from api.config import Settings
+from api.main import create_app
 
 
 @pytest.mark.asyncio
@@ -24,7 +27,37 @@ async def test_inventory_status_does_not_expose_token(
     assert response.status_code == 200
     payload = response.json()
     assert payload["inventree_token_configured"] is True
+    assert payload["inventree_basic_auth_configured"] is False
     assert "test-token" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_ingest_endpoint_missing_credentials_fails_without_secret_leak(
+    tmp_path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings = Settings(
+        inventree_base_url="http://inventree.test",
+        inventree_api_token="replace-me",
+        inventree_username="admin",
+        inventree_password="replace-me-local-only",
+        data_dir=tmp_path / "data",
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.post("/v1/ingest/inventree")
+
+    assert response.status_code == 400
+    assert "INVENTREE_API_TOKEN" in response.text
+    assert "admin" not in response.text
+    assert "replace-me-local-only" not in response.text
+    assert "admin" not in caplog.text
+    assert "replace-me-local-only" not in caplog.text
 
 
 @pytest.mark.asyncio

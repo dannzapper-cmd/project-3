@@ -25,12 +25,26 @@ Copy the safe placeholder file if desired:
 cp api/.env.example api/.env
 ```
 
-Required for live ingestion:
+Live ingestion supports two authentication options. Token auth remains the preferred production-like option. Basic Auth is a local-development fallback for Docker Desktop smoke tests when local token generation is not working.
+
+Option A — token auth:
 
 ```bash
 export INVENTREE_BASE_URL=http://inventree.localhost:8080
 export INVENTREE_API_TOKEN=<real-token>
+unset INVENTREE_USERNAME INVENTREE_PASSWORD
 ```
+
+Option B — local Basic Auth fallback:
+
+```bash
+export INVENTREE_BASE_URL=http://inventree.localhost:8080
+export INVENTREE_API_TOKEN=replace-me
+export INVENTREE_USERNAME=admin
+export INVENTREE_PASSWORD=<local-admin-password>
+```
+
+If `INVENTREE_API_TOKEN` is set to a real value, token auth is used. Basic Auth is only used when the token is unset or left as `replace-me` and both username and password are configured. The placeholder password `replace-me-local-only` is treated as not configured.
 
 Optional:
 
@@ -40,7 +54,7 @@ export INVFORGE_API_PORT=8001
 export INVENTREE_TIMEOUT_SECONDS=10
 ```
 
-Do not commit real tokens or passwords.
+Do not commit real tokens, usernames tied to real systems, or passwords.
 
 ## Setup
 
@@ -93,13 +107,28 @@ make api-health
 
 ## Local live ingestion smoke
 
-Live ingestion requires a running InvenTree stack and a valid API token. It should fail clearly if InvenTree is unavailable or the token is missing.
+Live ingestion requires a running InvenTree stack and valid credentials. It should fail clearly if InvenTree is unavailable or credentials are missing.
+
+Token auth smoke:
 
 ```bash
 make docker-up
 make api-dev
 export INVENTREE_BASE_URL=http://inventree.localhost:8080
 export INVENTREE_API_TOKEN=<real-token>
+unset INVENTREE_USERNAME INVENTREE_PASSWORD
+make ingest-inventree
+```
+
+Local Basic Auth fallback smoke:
+
+```bash
+make docker-up
+make api-dev
+export INVENTREE_BASE_URL=http://inventree.localhost:8080
+export INVENTREE_API_TOKEN=replace-me
+export INVENTREE_USERNAME=admin
+export INVENTREE_PASSWORD=<local-admin-password>
 make ingest-inventree
 ```
 
@@ -117,7 +146,7 @@ These output folders are gitignored.
 - `POST /v1/ingest/inventree`
 - `GET /v1/data/summary`
 
-Logs are structured JSON via `structlog` with `timestamp`, `level`, `service`, and `message` fields. Token values are not included in API errors or logs.
+Logs are structured JSON via `structlog` with `timestamp`, `level`, `service`, and `message` fields. Token, username, and password values are not included in API errors or logs.
 
 ## Validation coverage
 
@@ -137,5 +166,5 @@ Processed InvenTree CSV validation is optional when `data/processed/` does not e
 - Endpoint schemas are normalized conservatively from documented REST resources. Local `/api-doc/` should be used when adapting to a different InvenTree version.
 - No ML models, MLflow, Evidently, dashboards, Grafana/Prometheus, BentoML, Kubernetes, cloud deploy, or security scanning features are implemented in PR-02.
 - Feast is a minimal repo skeleton only; no materialization or feature server is started.
-- If Docker or a live InvenTree token is unavailable, do not claim live ingestion works. Use mocked tests plus local synthetic validation instead.
+- If Docker or live InvenTree credentials are unavailable, do not claim live ingestion works. Use mocked tests plus local synthetic validation instead.
 

@@ -12,7 +12,9 @@ class Settings:
     """Environment-backed settings with safe defaults for local development."""
 
     inventree_base_url: str = "http://inventree.localhost:8080"
-    inventree_api_token: str = "replace-me"
+    inventree_api_token: str | None = "replace-me"
+    inventree_username: str | None = None
+    inventree_password: str | None = None
     data_dir: Path = Path("data")
     api_port: int = 8001
     inventree_timeout_seconds: float = 10.0
@@ -26,6 +28,8 @@ class Settings:
             inventree_api_token=os.getenv(
                 "INVENTREE_API_TOKEN", cls.inventree_api_token
             ),
+            inventree_username=os.getenv("INVENTREE_USERNAME"),
+            inventree_password=os.getenv("INVENTREE_PASSWORD"),
             data_dir=Path(os.getenv("INVFORGE_DATA_DIR", str(cls.data_dir))),
             api_port=int(os.getenv("INVFORGE_API_PORT", str(cls.api_port))),
             inventree_timeout_seconds=float(

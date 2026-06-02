@@ -51,30 +51,57 @@ class InvenTreeClient:
         "companies": "/api/company/",
     }
 
+    TOKEN_PLACEHOLDERS = {"", "replace-me"}
+    PASSWORD_PLACEHOLDERS = {"", "replace-me", "replace-me-local-only"}
+
     def __init__(
         self,
         *,
         base_url: str,
-        api_token: str,
+        api_token: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
         timeout_seconds: float = 10.0,
         max_pages: int = 100,
     ) -> None:
         if not base_url:
             raise ValueError("InvenTree base URL is required")
-        if not api_token or api_token == "replace-me":
-            raise ValueError("INVENTREE_API_TOKEN must be configured")
         self.base_url = base_url.rstrip("/")
-        self.api_token = api_token
+        self.api_token = self._configured_value(api_token, self.TOKEN_PLACEHOLDERS)
+        self.username = self._configured_value(username, {""})
+        self.password = self._configured_value(password, self.PASSWORD_PLACEHOLDERS)
         self.timeout = httpx.Timeout(timeout_seconds)
         self.max_pages = max_pages
 
-    def _headers(self) -> dict[str, str]:
-        """Build token auth headers for InvenTree without logging the token."""
+        if self.api_token:
+            self.auth_mode = "token"
+        elif self.username and self.password:
+            self.auth_mode = "basic"
+        else:
+            raise ValueError(
+                "Configure INVENTREE_API_TOKEN or both INVENTREE_USERNAME "
+                "and INVENTREE_PASSWORD"
+            )
 
-        return {
-            "Accept": "application/json",
-            "Authorization": f"Token {self.api_token}",
-        }
+    @staticmethod
+    def _configured_value(value: str | None, placeholders: set[str]) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return None if stripped in placeholders else stripped
+
+    def _headers(self) -> dict[str, str]:
+        """Build safe request headers without logging credentials."""
+
+        headers = {"Accept": "application/json"}
+        if self.auth_mode == "token" and self.api_token:
+            headers["Authorization"] = f"Token {self.api_token}"
+        return headers
+
+    def _auth(self) -> httpx.Auth | None:
+        if self.auth_mode == "basic" and self.username and self.password:
+            return httpx.BasicAuth(self.username, self.password)
+        return None
 
     async def _get_json(
         self,
@@ -128,6 +155,7 @@ class InvenTreeClient:
         async with httpx.AsyncClient(
             base_url=self.base_url,
             headers=self._headers(),
+            auth=self._auth(),
             timeout=self.timeout,
         ) as client:
             while next_url:
