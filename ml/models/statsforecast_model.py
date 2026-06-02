@@ -14,6 +14,7 @@ from statsforecast.models import (
     CrostonSBA,
     SeasonalNaive,
 )
+from statsforecast.utils import ConformalIntervals
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +22,26 @@ REGULAR_MODELS = {"AutoETS", "SeasonalNaive"}
 INTERMITTENT_MODELS = {"CrostonClassic", "CrostonSBA", "SBA"}
 
 
-def _build_model(name: str, season_length: int):
+def _build_model(
+    name: str,
+    season_length: int,
+    *,
+    prediction_intervals: ConformalIntervals | None = None,
+):
     if name == "AutoETS":
-        return AutoETS(season_length=season_length)
+        return AutoETS(
+            season_length=season_length,
+            prediction_intervals=prediction_intervals,
+        )
     if name == "SeasonalNaive":
-        return SeasonalNaive(season_length=season_length)
+        return SeasonalNaive(
+            season_length=season_length,
+            prediction_intervals=prediction_intervals,
+        )
     if name == "CrostonClassic":
-        return CrostonClassic()
+        return CrostonClassic(prediction_intervals=prediction_intervals)
     if name in ("SBA", "CrostonSBA"):
-        return CrostonSBA()
+        return CrostonSBA(prediction_intervals=prediction_intervals)
     raise ValueError(f"Unknown StatsForecast model: {name}")
 
 
@@ -60,7 +72,17 @@ def _forecast_batch(
     last_error: Exception | None = None
     for names in attempts:
         try:
-            models = [_build_model(n, season_length) for n in names]
+            prediction_intervals = (
+                ConformalIntervals(n_windows=2, h=horizon) if level else None
+            )
+            models = [
+                _build_model(
+                    n,
+                    season_length,
+                    prediction_intervals=prediction_intervals,
+                )
+                for n in names
+            ]
             sf = StatsForecast(models=models, freq="D", n_jobs=1)
             forecasts = sf.forecast(df=pattern_train, h=horizon, level=level)
             forecasts = forecasts.reset_index()
