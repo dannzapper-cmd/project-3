@@ -1,0 +1,53 @@
+name: SLA Monitoring
+
+# Read-only uptime probe for a deployed InvForge AI Operations demo surface.
+# Portfolio/demo monitoring only — NOT a contractual SLA. See docs/sla-monitoring.md.
+#
+# Safe by design:
+#   * No cloud credentials required.
+#   * Calls only SAFE, read-only endpoints (scripts/deploy_smoke.py refuses
+#     mutation paths in code).
+#   * Skips gracefully when no demo URL is configured (does NOT fail).
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Public base URL of the deployed AI Operations API (overrides the DEMO_BASE_URL variable)."
+        required: false
+        type: string
+  # Optional scheduled heartbeat. Best-effort only; uncomment to enable.
+  # schedule:
+  #   - cron: "0 */6 * * *"
+
+jobs:
+  uptime-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve base URL
+        id: resolve
+        env:
+          INPUT_URL: ${{ inputs.base_url }}
+          VAR_URL: ${{ vars.DEMO_BASE_URL }}
+        run: |
+          URL="${INPUT_URL:-${VAR_URL:-}}"
+          if [ -z "${URL}" ]; then
+            echo "No base URL configured (set the DEMO_BASE_URL repo variable or"
+            echo "pass the base_url input). Skipping SLA monitoring gracefully."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read-only uptime smoke
+        if: steps.resolve.outputs.configured == 'true'
+        run: python scripts/deploy_smoke.py --base-url "${{ steps.resolve.outputs.url }}"

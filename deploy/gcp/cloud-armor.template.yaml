@@ -1,0 +1,70 @@
+# InvForge — GCP Cloud Armor (WAF/DDoS) profile TEMPLATE (PR-10).
+#
+# This is an ACTIVATION-READY TEMPLATE, not a live resource. Cloud Run by itself
+# does not sit behind Cloud Armor; to use this you must front the Cloud Run
+# service with an external Application Load Balancer + serverless NEG, then
+# attach this security policy to the backend. See deploy/gcp/README.md.
+#
+# Placeholders only — no real project IDs, IPs, or domains. WAF is NOT active
+# until you deploy this with your own GCP account and an HTTPS load balancer.
+#
+# Reference for gcloud equivalents:
+#   gcloud compute security-policies create POLICY_NAME --project PROJECT_ID
+#   gcloud compute security-policies rules create ... --security-policy POLICY_NAME
+
+# POLICY_NAME: name of the Cloud Armor security policy.
+name: POLICY_NAME
+description: >-
+  InvForge AI Operations Layer WAF/DDoS baseline. Rate-limits abusive clients
+  and applies preconfigured WAF rules. Attach to the load-balancer backend
+  fronting the Cloud Run service.
+
+# Adaptive Protection (Layer 7 DDoS) — requires Cloud Armor Enterprise tier in
+# some configurations; verify current pricing/eligibility before enabling.
+adaptiveProtectionConfig:
+  layer7DdosDefenseConfig:
+    enable: true
+
+rules:
+  # Throttle high-rate clients per source IP (tune to expected demo traffic).
+  - priority: 1000
+    description: "Per-IP rate limiting"
+    match:
+      versionedExpr: SRC_IPS_V1
+      config:
+        srcIpRanges:
+          - "*"
+    action: throttle
+    rateLimitOptions:
+      conformAction: allow
+      exceedAction: deny(429)
+      enforceOnKey: IP
+      rateLimitThreshold:
+        count: 100
+        intervalSec: 60
+
+  # Block common SQL injection patterns (preconfigured WAF rule).
+  - priority: 2000
+    description: "Block SQLi"
+    match:
+      expr:
+        expression: "evaluatePreconfiguredExpr('sqli-v33-stable')"
+    action: deny(403)
+
+  # Block common cross-site scripting patterns.
+  - priority: 2100
+    description: "Block XSS"
+    match:
+      expr:
+        expression: "evaluatePreconfiguredExpr('xss-v33-stable')"
+    action: deny(403)
+
+  # Default rule: allow everything else (the demo surface is read-only).
+  - priority: 2147483647
+    description: "Default allow"
+    match:
+      versionedExpr: SRC_IPS_V1
+      config:
+        srcIpRanges:
+          - "*"
+    action: allow

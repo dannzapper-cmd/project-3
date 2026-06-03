@@ -1,0 +1,76 @@
+# InvForge AI Operations Layer — Azure Container Apps template (PR-10).
+#
+# THIS IS A TEMPLATE. Placeholders only — no real subscription IDs, resource
+# groups, registries, or images. NOT actively deployed; activate manually with
+# your own Azure subscription via deploy/azure/README.md.
+#
+# Apply with (after replacing placeholders):
+#   az containerapp create --name APP_NAME --resource-group RESOURCE_GROUP \
+#     --environment ENVIRONMENT_NAME --yaml deploy/azure/container-app.template.yaml
+
+# Azure Resource Manager id of the Container Apps managed environment.
+# /subscriptions/SUBSCRIPTION_ID/resourceGroups/RESOURCE_GROUP/providers/Microsoft.App/managedEnvironments/ENVIRONMENT_NAME
+name: APP_NAME
+type: Microsoft.App/containerApps
+location: LOCATION
+properties:
+  managedEnvironmentId: >-
+    /subscriptions/SUBSCRIPTION_ID/resourceGroups/RESOURCE_GROUP/providers/Microsoft.App/managedEnvironments/ENVIRONMENT_NAME
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      # Public demo surface (read-only). Set external: false to keep it internal.
+      external: true
+      targetPort: 8001
+      transport: auto
+      allowInsecure: false
+    secrets:
+      # Store sensitive values as Container Apps secrets (or reference Key Vault).
+      # Only needed if you enable live ingestion; the read-only demo needs none.
+      - name: inventree-api-token
+        value: REPLACE_VIA_KEYVAULT_OR_CLI
+    registries:
+      # REGISTRY_SERVER e.g. myregistry.azurecr.io
+      - server: REGISTRY_SERVER
+        identity: system
+  template:
+    containers:
+      - name: invforge-ai-ops
+        # IMAGE_URI e.g. REGISTRY_SERVER/invforge/ai-ops:latest
+        image: IMAGE_URI
+        resources:
+          cpu: 0.5
+          memory: 1.0Gi
+        env:
+          - name: PORT
+            value: "8001"
+          - name: INVFORGE_ENV
+            value: "cloud"
+          - name: INVFORGE_DEMO_MODE
+            value: "true"
+          # Read-only surface. NEVER "true" on a public deployment.
+          - name: INVFORGE_ALLOW_MUTATIONS
+            value: "false"
+          - name: LOG_LEVEL
+            value: "INFO"
+          # Secret-backed env var (uncomment to wire up live ingestion):
+          # - name: INVENTREE_API_TOKEN
+          #   secretRef: inventree-api-token
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8001
+            periodSeconds: 30
+            timeoutSeconds: 5
+          - type: Startup
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+    scale:
+      # Scale to zero when idle (cost control); cap replicas to bound cost.
+      minReplicas: 0
+      maxReplicas: 3

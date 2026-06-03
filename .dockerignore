@@ -1,0 +1,78 @@
+# InvForge deployable AI Operations image — keep the build context minimal and
+# never leak secrets, local ML state, data, or notebooks into the image.
+
+# Secrets / environment (never copy any .env* into the image)
+.env
+.env.*
+*.env
+*.pem
+*.key
+.secrets.baseline
+
+# Local ML / MLOps state and generated artifacts
+mlruns/
+artifacts/
+bentoml/
+.bentoml/
+*.bento
+.zenml/
+.zenml_local/
+
+# Data (synthetic CSVs, raw + processed snapshots)
+data/
+
+# Notebooks
+notebooks/
+*.ipynb
+.ipynb_checkpoints/
+
+# InvenTree core base stack + its persistent volume (sidecar stays external)
+app/inventree-data/
+
+# Version control / CI / tooling metadata
+.git/
+.github/
+.devcontainer/
+.dvc/
+.dvcignore
+dvc.lock
+dvc.yaml
+
+# Python caches / build outputs / virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+.python-version
+uv.lock
+
+# Test / coverage / lint caches
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Source not needed by the deployable AI Operations image
+ml/
+mlops/
+dashboard/
+security/
+feast/
+tests/
+docs/
+deploy/
+scripts/
+*.md
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+*.log

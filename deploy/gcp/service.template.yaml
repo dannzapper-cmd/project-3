@@ -1,0 +1,84 @@
+# InvForge AI Operations Layer — Google Cloud Run service template (PR-10).
+#
+# THIS IS A TEMPLATE. It contains placeholders only — no real project IDs,
+# regions, images, or service accounts. Replace every UPPERCASE placeholder
+# before deploying with your own GCP credentials. This profile is NOT actively
+# deployed by InvForge or CI; activate it manually via deploy/gcp/README.md.
+#
+# Apply with:
+#   gcloud run services replace deploy/gcp/service.template.yaml \
+#     --region REGION --project PROJECT_ID
+# (after substituting placeholders — see deploy.example.sh).
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  # SERVICE_NAME: your Cloud Run service name, e.g. invforge-ai-ops.
+  name: SERVICE_NAME
+  labels:
+    app: invforge-ai-ops
+    component: ai-operations-layer
+  annotations:
+    # Allow scale-to-zero (no always-on charges). Cold starts are acceptable
+    # for a portfolio/demo surface.
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to zero when idle; cap max instances to avoid runaway cost.
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+    spec:
+      # Optional dedicated runtime service account (least privilege). Replace or
+      # remove to use the Cloud Run default service account.
+      serviceAccountName: SA_EMAIL
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        # IMAGE_URI: e.g. REGION-docker.pkg.dev/PROJECT_ID/invforge/ai-ops:TAG
+        - image: IMAGE_URI
+          ports:
+            # Cloud Run injects PORT and routes to this containerPort.
+            - name: http1
+              containerPort: 8001
+          # Plain (non-sensitive) configuration env vars. Safe to inline here.
+          env:
+            - name: PORT
+              value: "8001"
+            - name: INVFORGE_ENV
+              value: "cloud"
+            - name: INVFORGE_DEMO_MODE
+              value: "true"
+            # Cloud/demo surface stays read-only. NEVER set this to "true" on a
+            # public deployment.
+            - name: INVFORGE_ALLOW_MUTATIONS
+              value: "false"
+            - name: LOG_LEVEL
+              value: "INFO"
+            # Example of a SECRET-backed env var. Create the secret first
+            # (see README) and keep credentials OUT of this file. Uncomment and
+            # rename SECRET_NAME to wire it up:
+            # - name: INVENTREE_API_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: SECRET_NAME        # Secret Manager secret name
+            #       key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          # Liveness/startup probe against the confirmed /health endpoint.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            periodSeconds: 30
+            timeoutSeconds: 5

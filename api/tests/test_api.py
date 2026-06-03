@@ -188,3 +188,129 @@ async def test_ingest_endpoint_error_does_not_leak_token(
     assert response.status_code == 502
     assert "test-token" not in response.text
     assert "test-token" not in caplog.text
+
+
+# --- PR-10 runtime modes: cloud/demo safety gating -------------------------
+
+
+async def _client_for(settings: Settings) -> AsyncClient:
+    app = create_app(settings)
+    transport = ASGITransport(app=app)
+    return AsyncClient(transport=transport, base_url="http://testserver")
+
+
+@pytest.mark.asyncio
+async def test_cloud_mode_blocks_mutation_endpoint(tmp_path) -> None:
+    settings = Settings(
+        inventree_base_url="http://inventree.test",
+        data_dir=tmp_path / "data",
+        env="cloud",
+        demo_mode=True,
+        allow_mutations=False,
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.post("/v1/ingest/inventree")
+
+    assert response.status_code == 403
+    assert "INVFORGE_ALLOW_MUTATIONS" in response.text
+    # The block must not leak any configured secret material.
+    assert "test-token" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_demo_mode_health_returns_200_without_artifacts(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        env="demo",
+        demo_mode=True,
+        allow_mutations=False,
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.get("/health")
+
+    # Demo surface stays healthy for provider probes even with no local
+    # artifacts, while still reporting the true artifact status in the payload.
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["pr_stage"] == "PR-07"
+    assert payload["status"] in {"ok", "degraded", "unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_demo_mode_safe_endpoints_remain_readonly_public(tmp_path) -> None:
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        env="demo",
+        demo_mode=True,
+        allow_mutations=False,
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            status = await client.get("/v1/inventory/status")
+            summary = await client.get("/v1/data/summary")
+
+    assert status.status_code == 200
+    status_payload = status.json()
+    assert status_payload["env"] == "demo"
+    assert status_payload["demo_mode"] is True
+    assert status_payload["allow_mutations"] is False
+    assert summary.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_local_mode_still_allows_mutations(tmp_path) -> None:
+    # Default Settings == local behavior: mutation gate is open (the call still
+    # fails on missing credentials, proving the gate did NOT short-circuit it).
+    settings = Settings(
+        inventree_base_url="http://inventree.test",
+        inventree_api_token="replace-me",
+        inventree_username="admin",
+        inventree_password="replace-me-local-only",
+        data_dir=tmp_path / "data",
+    )
+    assert settings.env == "local"
+    assert settings.allow_mutations is True
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.post("/v1/ingest/inventree")
+
+    # 400 (config error) not 403 (mutation blocked) => gate is open locally.
+    assert response.status_code == 400
+
+
+def test_from_env_cloud_defaults_are_readonly(monkeypatch) -> None:
+    monkeypatch.setenv("INVFORGE_ENV", "cloud")
+    monkeypatch.delenv("INVFORGE_DEMO_MODE", raising=False)
+    monkeypatch.delenv("INVFORGE_ALLOW_MUTATIONS", raising=False)
+    settings = Settings.from_env()
+    assert settings.env == "cloud"
+    assert settings.demo_mode is True
+    assert settings.allow_mutations is False
+
+
+def test_from_env_local_defaults_preserve_behavior(monkeypatch) -> None:
+    monkeypatch.delenv("INVFORGE_ENV", raising=False)
+    monkeypatch.delenv("INVFORGE_DEMO_MODE", raising=False)
+    monkeypatch.delenv("INVFORGE_ALLOW_MUTATIONS", raising=False)
+    settings = Settings.from_env()
+    assert settings.env == "local"
+    assert settings.demo_mode is False
+    assert settings.allow_mutations is True

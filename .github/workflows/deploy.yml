@@ -1,0 +1,94 @@
+name: Deploy Validation
+
+# PR-10 deploy validation. This workflow NEVER creates cloud resources, never
+# requires cloud credentials, and never runs gcloud/aws/az. It only validates
+# the deploy profile templates statically and (optionally) builds + smoke-tests
+# the AI Operations container locally on the runner.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML (for YAML template validation)
+        run: python -m pip install --quiet pyyaml
+
+      - name: Validate JSON templates parse
+        run: |
+          set -euo pipefail
+          for f in $(find deploy -name '*.json'); do
+            echo "Validating JSON: $f"
+            python -m json.tool "$f" > /dev/null
+          done
+
+      - name: Validate deploy profiles (placeholders, secrets, teardown, dockerignore)
+        run: python scripts/validate_deploy_profiles.py
+
+      - name: Deploy smoke script self-check (refuses unsafe paths)
+        run: |
+          python - <<'PY'
+          from scripts.deploy_smoke import SmokeError, _assert_safe_path
+
+          _assert_safe_path("/health")
+          for path in ("/v1/ingest/inventree", "/retrain", "/v1/model/rollback"):
+              try:
+                  _assert_safe_path(path)
+              except SmokeError:
+                  continue
+              raise SystemExit(f"deploy_smoke failed to block unsafe path: {path}")
+          print("deploy_smoke unsafe-path guard OK")
+          PY
+
+  docker-build-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build AI Operations image
+        run: docker build -t invforge-ai-ops:ci .
+
+      - name: Run container (demo mode, read-only)
+        run: |
+          docker run -d --name invforge-ci \
+            -e INVFORGE_ENV=demo -e PORT=8001 -p 8001:8001 \
+            invforge-ai-ops:ci
+
+      - name: Wait for health
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8001/health > /dev/null; then
+              echo "Healthy after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Service did not become healthy"; docker logs invforge-ci; exit 1
+
+      - name: Read-only deploy smoke check
+        run: python scripts/deploy_smoke.py --base-url http://localhost:8001
+
+      - name: Verify mutation endpoint is blocked (demo mode)
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            http://localhost:8001/v1/ingest/inventree)
+          echo "POST /v1/ingest/inventree -> ${code}"
+          test "${code}" = "403"
+
+      - name: Tear down container
+        if: always()
+        run: docker rm -f invforge-ci || true

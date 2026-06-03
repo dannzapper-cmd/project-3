@@ -1,0 +1,61 @@
+{
+  "Name": "invforge-ai-ops-web-acl",
+  "Scope": "REGIONAL",
+  "Description": "InvForge AI Operations Layer WAF baseline TEMPLATE (PR-10). Placeholders only; NOT a live resource. Associate with the ALB fronting the ECS/Fargate service. WAF is not active until deployed with your own AWS account.",
+  "DefaultAction": { "Allow": {} },
+  "VisibilityConfig": {
+    "SampledRequestsEnabled": true,
+    "CloudWatchMetricsEnabled": true,
+    "MetricName": "invforgeAiOpsWebAcl"
+  },
+  "Rules": [
+    {
+      "Name": "AWSManagedCommonRules",
+      "Priority": 1,
+      "OverrideAction": { "None": {} },
+      "Statement": {
+        "ManagedRuleGroupStatement": {
+          "VendorName": "AWS",
+          "Name": "AWSManagedRulesCommonRuleSet"
+        }
+      },
+      "VisibilityConfig": {
+        "SampledRequestsEnabled": true,
+        "CloudWatchMetricsEnabled": true,
+        "MetricName": "commonRules"
+      }
+    },
+    {
+      "Name": "AWSManagedKnownBadInputs",
+      "Priority": 2,
+      "OverrideAction": { "None": {} },
+      "Statement": {
+        "ManagedRuleGroupStatement": {
+          "VendorName": "AWS",
+          "Name": "AWSManagedRulesKnownBadInputsRuleSet"
+        }
+      },
+      "VisibilityConfig": {
+        "SampledRequestsEnabled": true,
+        "CloudWatchMetricsEnabled": true,
+        "MetricName": "knownBadInputs"
+      }
+    },
+    {
+      "Name": "PerIpRateLimit",
+      "Priority": 3,
+      "Action": { "Block": {} },
+      "Statement": {
+        "RateBasedStatement": {
+          "Limit": 1000,
+          "AggregateKeyType": "IP"
+        }
+      },
+      "VisibilityConfig": {
+        "SampledRequestsEnabled": true,
+        "CloudWatchMetricsEnabled": true,
+        "MetricName": "perIpRateLimit"
+      }
+    }
+  ]
+}
