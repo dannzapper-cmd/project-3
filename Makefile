@@ -9,8 +9,11 @@ OBSERVABILITY_COMPOSE := observability/docker-compose.observability.yml
 OUTPUT_DIR := data/synthetic/output
 SEED := 42
 INVFORGE_API_PORT ?= 8001
+# PR-10 deploy image + smoke defaults.
+AI_IMAGE ?= invforge-ai-ops:local
+BASE_URL ?= http://localhost:$(INVFORGE_API_PORT)
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom lint test secrets-scan ci
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci
 
 help:
 	@echo "InvForge — available targets:"
@@ -39,6 +42,10 @@ help:
 	@echo "  security-check    Bandit + pip-audit + detect-secrets"
 	@echo "  trivy-scan        Filesystem scan (CRITICAL blocks, HIGH reports)"
 	@echo "  sbom              Generate CycloneDX SBOM (requires syft)"
+	@echo "  deploy-validate   Validate PR-10 deploy profiles/templates (offline)"
+	@echo "  deploy-smoke      Read-only smoke check (BASE_URL=...) against a running API"
+	@echo "  docker-build-ai   Build the deployable AI Operations Layer image"
+	@echo "  docker-smoke      Build+run AI Ops container (demo mode) and smoke it"
 	@echo "  lint            Run Ruff linter"
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
@@ -172,6 +179,30 @@ sbom:
 	@command -v syft >/dev/null 2>&1 || { echo "syft not installed; see security/README.md"; exit 1; }
 	@mkdir -p artifacts/security
 	syft . -o cyclonedx-json > artifacts/security/sbom.cyclonedx.json
+
+# PR-10 deployment: validate deploy profiles/templates (offline, no cloud).
+deploy-validate:
+	$(UV) run --group ml python scripts/validate_deploy_profiles.py
+
+# Read-only deploy smoke check against a running API (local or cloud URL).
+# Usage: make deploy-smoke BASE_URL=https://your-service.example.run.app
+deploy-smoke:
+	$(UV) run python scripts/deploy_smoke.py --base-url $(BASE_URL)
+
+# Build the deployable AI Operations Layer image (runtime-only; see Dockerfile).
+docker-build-ai:
+	docker build -t $(AI_IMAGE) .
+
+# Build, run (demo/read-only), smoke, and tear down the AI Operations container.
+docker-smoke: docker-build-ai
+	@docker rm -f invforge-ai-smoke >/dev/null 2>&1 || true
+	docker run -d --name invforge-ai-smoke -e INVFORGE_ENV=demo \
+		-e PORT=$(INVFORGE_API_PORT) -p $(INVFORGE_API_PORT):$(INVFORGE_API_PORT) $(AI_IMAGE)
+	@echo "Waiting for /health..."; \
+	for i in $$(seq 1 30); do \
+		curl -fsS $(BASE_URL)/health >/dev/null 2>&1 && break; sleep 1; done
+	$(UV) run python scripts/deploy_smoke.py --base-url $(BASE_URL); \
+	rc=$$?; docker rm -f invforge-ai-smoke >/dev/null 2>&1 || true; exit $$rc
 
 lint:
 	$(UV) run ruff check .
