@@ -45,7 +45,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings = runtime_settings
-        logger.info("api_startup")
+        logger.info(
+            "api_startup",
+            env=runtime_settings.env,
+            demo_mode=runtime_settings.demo_mode,
+            allow_mutations=runtime_settings.allow_mutations,
+        )
         yield
         logger.info("api_shutdown")
 
@@ -82,7 +87,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health")
     async def health() -> JSONResponse:
         payload = build_health_status()
-        status_code = 503 if payload["status"] == "unavailable" else 200
+        # In demo/cloud mode the container may run without local MLOps artifacts
+        # (mlruns/, artifacts/). The process is still healthy and serving, so we
+        # return 200 to satisfy provider liveness/startup probes while the
+        # payload continues to report artifact status truthfully. Local/CI keeps
+        # the strict PR-07 contract (503 when no artifacts are present).
+        if runtime_settings.demo_mode:
+            status_code = 200
+        else:
+            status_code = 503 if payload["status"] == "unavailable" else 200
         return JSONResponse(content=payload, status_code=status_code)
 
     @app.get("/metrics")
@@ -107,6 +120,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary = data_summary(settings.data_dir)
         return {
             "status": "ready",
+            "env": settings.env,
+            "demo_mode": settings.demo_mode,
+            "allow_mutations": settings.allow_mutations,
             "inventree_base_url": settings.inventree_base_url,
             "inventree_token_configured": bool(
                 settings.inventree_api_token
@@ -125,6 +141,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/ingest/inventree")
     async def ingest_inventory() -> dict[str, Any]:
         settings = app.state.settings
+        # UNSAFE / mutation path: reaches out to InvenTree and writes raw +
+        # processed snapshots to the data dir. Blocked by default on cloud/demo
+        # surfaces (INVFORGE_ALLOW_MUTATIONS=false). See docs/deployment-contract.md.
+        if not settings.allow_mutations:
+            logger.warning("mutation_blocked", endpoint="/v1/ingest/inventree")
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Mutation endpoints are disabled in this environment "
+                    f"(INVFORGE_ENV={settings.env}). Set "
+                    "INVFORGE_ALLOW_MUTATIONS=true to enable (local/trusted use only)."
+                ),
+            )
         try:
             client = _build_inventree_client(settings)
             result = await ingest_inventree(client=client, data_dir=settings.data_dir)
