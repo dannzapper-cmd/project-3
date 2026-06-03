@@ -7,7 +7,10 @@ placeholder-only, and complete:
 
   * JSON templates parse as valid JSON.
   * YAML templates parse as valid YAML (skipped with a warning if PyYAML is
-    unavailable).
+    unavailable). Raw Helm chart templates under deploy/k8s/*/templates/ are
+    NOT plain YAML — they are validated via helm lint + helm template instead.
+  * Helm charts (deploy/k8s/helm/invforge, observability, lineage) are linted,
+    rendered, YAML-checked, and kubeconform-validated when those tools exist.
   * env.example files contain no real-looking secrets.
   * Deploy templates contain only placeholders (no real project/account/
     subscription IDs).
@@ -23,6 +26,8 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,6 +42,16 @@ except ImportError:  # pragma: no cover - PyYAML is optional for this script
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEPLOY_DIR = REPO_ROOT / "deploy"
 PROVIDERS = ("gcp", "aws", "azure")
+
+# Helm charts validated via helm lint/template (not raw YAML parse). Charts may
+# be absent until their PR lands.
+HELM_CHART_DIRS: tuple[str, ...] = (
+    "deploy/k8s/helm/invforge",
+    "deploy/k8s/observability",
+    "deploy/k8s/lineage",
+)
+HELM_RELEASE_NAME = "ci-validate"
+HELM_NAMESPACE = "invforge-ai"
 
 # Required placeholders per provider service template. Presence proves the
 # template is parameterized rather than hardcoded to a real account.
@@ -119,13 +134,138 @@ def _validate_json(failures: list[str], path: Path) -> None:
         _fail(failures, f"{path}: invalid JSON ({exc}).")
 
 
+def _helm_chart_roots() -> list[Path]:
+    return [REPO_ROOT / rel for rel in HELM_CHART_DIRS]
+
+
+def _is_helm_raw_template(path: Path) -> bool:
+    """True for unrendered Helm templates (Go directives, not valid YAML)."""
+
+    for chart_root in _helm_chart_roots():
+        templates_dir = chart_root / "templates"
+        if not templates_dir.is_dir():
+            continue
+        try:
+            path.relative_to(templates_dir)
+        except ValueError:
+            continue
+        if path.suffix in {".yaml", ".yml", ".tpl"}:
+            return True
+    return False
+
+
 def _validate_yaml(failures: list[str], path: Path) -> None:
     if not _YAML:
+        return
+    if _is_helm_raw_template(path):
         return
     try:
         list(yaml.safe_load_all(path.read_text(encoding="utf-8")))
     except (OSError, yaml.YAMLError) as exc:  # type: ignore[union-attr]
         _fail(failures, f"{path}: invalid YAML ({exc}).")
+
+
+def _helm_values_files(chart_dir: Path) -> list[Path]:
+    values: list[Path] = []
+    for name in ("values.yaml", "values-local.yaml"):
+        candidate = chart_dir / name
+        if candidate.is_file():
+            values.append(candidate)
+    return values
+
+
+def _validate_helm_charts(failures: list[str]) -> None:
+    """Lint, render, and schema-check Helm charts (offline, no cluster)."""
+
+    charts = [
+        chart_dir
+        for chart_dir in _helm_chart_roots()
+        if (chart_dir / "Chart.yaml").is_file()
+    ]
+    if not charts:
+        return
+
+    helm_bin = shutil.which("helm")
+    if not helm_bin:
+        _fail(
+            failures,
+            "helm is not installed but Helm charts exist under deploy/k8s/. "
+            "Install helm to validate chart templates.",
+        )
+        return
+
+    kubeconform_bin = shutil.which("kubeconform")
+
+    for chart_dir in charts:
+        rel = chart_dir.relative_to(REPO_ROOT)
+        values_files = _helm_values_files(chart_dir)
+
+        lint_cmd = [helm_bin, "lint", str(chart_dir)]
+        for vf in values_files:
+            lint_cmd.extend(["-f", str(vf)])
+        lint = subprocess.run(
+            lint_cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if lint.returncode != 0:
+            detail = (lint.stdout + lint.stderr).strip() or "helm lint failed"
+            _fail(failures, f"{rel}: helm lint failed ({detail}).")
+
+        template_cmd = [
+            helm_bin,
+            "template",
+            HELM_RELEASE_NAME,
+            str(chart_dir),
+            "-n",
+            HELM_NAMESPACE,
+        ]
+        for vf in values_files:
+            template_cmd.extend(["-f", str(vf)])
+        rendered = subprocess.run(
+            template_cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if rendered.returncode != 0:
+            detail = (rendered.stdout + rendered.stderr).strip() or (
+                "helm template failed"
+            )
+            _fail(failures, f"{rel}: helm template failed ({detail}).")
+            continue
+
+        if _YAML:
+            try:
+                list(yaml.safe_load_all(rendered.stdout))
+            except yaml.YAMLError as exc:  # type: ignore[union-attr]
+                _fail(
+                    failures,
+                    f"{rel}: rendered manifest is invalid YAML ({exc}).",
+                )
+
+        if kubeconform_bin:
+            kc = subprocess.run(
+                [
+                    kubeconform_bin,
+                    "-summary",
+                    "-ignore-missing-schemas",
+                    "-",
+                ],
+                input=rendered.stdout,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if kc.returncode != 0:
+                detail = (kc.stdout + kc.stderr).strip() or "kubeconform failed"
+                _fail(failures, f"{rel}: kubeconform failed ({detail}).")
+        else:
+            print(
+                f"WARNING: kubeconform not installed; skipped schema check for {rel}.",
+                file=sys.stderr,
+            )
 
 
 def _validate_placeholders(failures: list[str], provider: str) -> None:
@@ -215,6 +355,8 @@ def main() -> int:
         _validate_readme(failures, provider)
 
     _validate_dockerignore(failures)
+
+    _validate_helm_charts(failures)
 
     if not _YAML:
         print("WARNING: PyYAML not available; YAML syntax checks were skipped.")
