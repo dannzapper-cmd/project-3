@@ -53,7 +53,15 @@ htmlcov/
 mlruns/
 
 # Generated decision intelligence + MLOps artifacts (PR-04+, PR-05+)
-artifacts/
+artifacts/*
+!artifacts/security/
+artifacts/security/*
+!artifacts/security/.gitkeep
+
+# Security artifacts (generated at runtime; PR-08)
+artifacts/security/*.jsonl
+artifacts/security/*.json
+artifacts/security/*.csv
 
 # BentoML local model store / build outputs (PR-05; never commit heavy bentos)
 bentoml/
