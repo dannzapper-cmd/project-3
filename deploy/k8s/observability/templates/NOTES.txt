@@ -1,0 +1,37 @@
+InvForge advanced observability (PR-11B) installed into namespace: {{ .Values.namespace }}
+
+This is an OPTIONAL profile. It is NOT started by `make k8s-up`. InvenTree is
+never deployed here. Access is via kubectl port-forward (ClusterIP only).
+
+Port-forward everything (or use `make obs-k8s-port-forward`):
+
+  kubectl -n {{ .Values.namespace }} port-forward svc/grafana {{ .Values.grafana.port }}:{{ .Values.grafana.port }}
+  kubectl -n {{ .Values.namespace }} port-forward svc/prometheus {{ .Values.prometheus.port }}:{{ .Values.prometheus.port }}
+  kubectl -n {{ .Values.namespace }} port-forward svc/loki {{ .Values.loki.port }}:{{ .Values.loki.port }}
+  kubectl -n {{ .Values.namespace }} port-forward svc/tempo {{ .Values.tempo.httpPort }}:{{ .Values.tempo.httpPort }}
+  kubectl -n {{ .Values.namespace }} port-forward svc/alertmanager {{ .Values.alertmanager.port }}:{{ .Values.alertmanager.port }}
+
+Then:
+  Grafana:       http://localhost:{{ .Values.grafana.port }}  (admin/admin or anonymous Viewer)
+  Prometheus:    http://localhost:{{ .Values.prometheus.port }}
+  AlertManager:  http://localhost:{{ .Values.alertmanager.port }}
+
+Smoke (after port-forwards): make obs-k8s-smoke
+
+TRUTHFUL STATUS:
+- Metrics: REAL. Prometheus scrapes the AI API /metrics (job=invforge-ai). The
+  Grafana dashboard uses only the verified PR-07 metric contract.
+- Logs: REAL. Promtail (DaemonSet) ships pod stdout to Loki; the AI API emits
+  structured JSON logs. Grafana "Loki" datasource + logs panel.
+- Alerts: REAL. 3 rules on real metrics -> AlertManager -> in-cluster webhook
+  receiver (alert-webhook-receiver). Confirm with `kubectl logs`.
+- Traces: PENDING. Tempo + OTel Collector are deployed as OTLP receivers but the
+  AI API is NOT OTEL-instrumented yet, so no traces flow. Enabling traces is
+  deferred (see docs/runbooks/otel-tracing.md). The Tempo panel says so.
+
+NOTE on NetworkPolicy: PR-11A ships structural NetworkPolicy in invforge-ai.
+kindnet does not enforce it, so cross-namespace scraping works on default kind.
+If you enable Calico, allow ingress from {{ .Values.namespace }} to the AI API.
+
+Redis inference caching is intentionally NOT here (no cache integration in the
+API). Mimir and OpenMetadata are intentionally excluded (see ADR 003).

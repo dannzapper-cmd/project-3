@@ -1,0 +1,118 @@
+{{- if .Values.otelCollector.enabled }}
+{{- /*
+OpenTelemetry Collector — deployed as a Deployment (not a DaemonSet: on a
+single-node kind cluster they are equivalent, and a Deployment is simpler).
+Role: OTLP receiver only (gRPC 4317 / HTTP 4318), exporting traces to Tempo. It
+does NOT scrape Prometheus (Prometheus scrapes /metrics directly — no
+duplication). It is idle until the AI API is instrumented with OTEL and points
+OTEL_EXPORTER_OTLP_ENDPOINT at otel-collector:4317 (deferred — see ADR 003).
+
+Data flow when active:
+  AI API (OTLP) -> otel-collector:4317 -> exports to tempo:4317 -> Grafana Tempo DS
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+data:
+  collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:{{ .Values.otelCollector.otlpGrpcPort }}
+          http:
+            endpoint: 0.0.0.0:{{ .Values.otelCollector.otlpHttpPort }}
+    processors:
+      batch: {}
+    exporters:
+      otlp/tempo:
+        endpoint: tempo:{{ .Values.tempo.otlpGrpcPort }}
+        tls:
+          insecure: true
+    service:
+      telemetry:
+        metrics:
+          level: none
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/tempo]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: otel-collector
+  template:
+    metadata:
+      labels:
+        {{- include "obs.labels" . | nindent 8 }}
+        app.kubernetes.io/component: otel-collector
+      annotations:
+        checksum/config: {{ toYaml $.Values | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: otel-collector
+          image: {{ .Values.otelCollector.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          args:
+            - --config=/etc/otel/collector.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: {{ .Values.otelCollector.otlpGrpcPort }}
+            - name: otlp-http
+              containerPort: {{ .Values.otelCollector.otlpHttpPort }}
+          resources:
+            {{- toYaml .Values.otelCollector.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: {{ .Values.otelCollector.otlpGrpcPort }}
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: {{ .Values.otelCollector.otlpHttpPort }}
+      targetPort: otlp-http
+{{- end }}

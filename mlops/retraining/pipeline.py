@@ -200,15 +200,26 @@ def run_retraining(cfg: RetrainingConfig) -> dict:
     """
 
     cfg.artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    # Optional OpenLineage emission (PR-11B). No-op unless OPENLINEAGE_URL is set;
+    # never raises. Lazy import so the default path needs no extra dependency.
+    from mlops.retraining import lineage
+
+    ol_run_id = lineage.new_run_id()
+    lineage.emit_start(ol_run_id)
+
     try:
         retraining_pipeline(cfg.to_dict())
     except Exception as exc:
         logger.exception("Retraining pipeline failed: %s", exc)
+        lineage.emit_fail(ol_run_id)
         return lifecycle.write_failed_summary(cfg, f"{type(exc).__name__}: {exc}")
 
     summary_path = cfg.artifacts_dir / "retraining_summary.json"
     if summary_path.exists():
+        lineage.emit_complete(ol_run_id)
         return read_json(summary_path)
+    lineage.emit_fail(ol_run_id)
     return lifecycle.write_failed_summary(
         cfg, "Pipeline completed without writing a summary."
     )

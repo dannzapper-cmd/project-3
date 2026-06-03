@@ -1,0 +1,18 @@
+apiVersion: v2
+name: invforge-lineage
+description: |
+  InvForge data lineage (PR-11B) — local Marquez (OpenLineage server) profile.
+  OPTIONAL and separate from observability. Marquez API + web + an embedded
+  ephemeral PostgreSQL, in namespace invforge-lineage. Receives OpenLineage
+  events emitted by the retraining pipeline (mlops/retraining/lineage.py) when
+  OPENLINEAGE_URL is set. Local/dev only; no cloud, no secrets, ephemeral DB.
+type: application
+version: 0.1.0
+appVersion: "0.49.0"
+keywords:
+  - invforge
+  - lineage
+  - openlineage
+  - marquez
+maintainers:
+  - name: InvForge
