@@ -12,8 +12,18 @@ INVFORGE_API_PORT ?= 8001
 # PR-10 deploy image + smoke defaults.
 AI_IMAGE ?= invforge-ai-ops:local
 BASE_URL ?= http://localhost:$(INVFORGE_API_PORT)
+# PR-11A local Kubernetes (AI layer only). Image names MUST match Helm values
+# (deploy/k8s/helm/invforge/values.yaml): aiApi.image=invforge-ai-ops:local,
+# retraining.image=invforge-retraining:local, bentoml.image=<service>:<tag>.
+KIND_CLUSTER ?= invforge-local
+KIND_CONFIG := deploy/k8s/kind-config.yaml
+HELM_RELEASE ?= invforge
+HELM_CHART := deploy/k8s/helm/invforge
+K8S_NAMESPACE ?= invforge-ai
+RETRAIN_IMAGE ?= invforge-retraining:local
+BENTO_IMAGE ?= invforge_demand_forecast:local
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback
 
 help:
 	@echo "InvForge — available targets:"
@@ -50,6 +60,25 @@ help:
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
 	@echo "  ci              Run local CI checks"
+	@echo "  --- PR-11A Kubernetes (AI layer only; local kind) ---"
+	@echo "  k8s-preflight   Check kind/kubectl/helm + warn if InvenTree is up"
+	@echo "  k8s-up          Create local kind cluster and load the AI image"
+	@echo "  k8s-load-images kind load the AI Ops image into the cluster"
+	@echo "  k8s-deploy      helm upgrade --install the AI layer chart"
+	@echo "  k8s-status      Show nodes/namespaces/pods/services"
+	@echo "  k8s-smoke       Port-forward the AI API and curl /health + /metrics"
+	@echo "  k8s-logs        Tail AI API pod logs"
+	@echo "  k8s-down        Delete the local kind cluster"
+	@echo "  helm-lint       helm lint the chart"
+	@echo "  helm-template   helm template the chart (default values)"
+	@echo "  bento-build         Build a Bento bundle (prereq: champion model)"
+	@echo "  bento-containerize  Containerize the Bento into a Docker image"
+	@echo "  k8s-load-bento      kind load the BentoML image"
+	@echo "  k8s-retrain-image   Build the isolated retraining image"
+	@echo "  k8s-retrain         Build+load retraining image and create the Job"
+	@echo "  model-switch-blue   Blue-green: point BentoML Service at blue"
+	@echo "  model-switch-green  Blue-green: point BentoML Service at green"
+	@echo "  model-switch-rollback Blue-green: revert active color to blue"
 
 docker-config:
 	@test -f $(COMPOSE_ENV) || cp app/.env.example $(COMPOSE_ENV)
@@ -215,3 +244,106 @@ secrets-scan:
 
 ci: lint test generate-data validate-data docker-config
 	@echo "CI checks passed."
+
+# ---------------------------------------------------------------------------
+# PR-11A — local Kubernetes for the AI layer ONLY (kind + Helm).
+# InvenTree stays in Docker Compose and is NEVER deployed to Kubernetes.
+# No cloud resources are created. See docs/runbooks/k8s-startup.md.
+# ---------------------------------------------------------------------------
+
+# Static chart validation (no cluster required).
+helm-lint:
+	helm lint $(HELM_CHART) -f $(HELM_CHART)/values.yaml
+
+helm-template:
+	helm template $(HELM_RELEASE) $(HELM_CHART) \
+		-f $(HELM_CHART)/values.yaml -f $(HELM_CHART)/values-local.yaml \
+		-n $(K8S_NAMESPACE)
+
+# Verify tooling and warn if InvenTree Compose is running (8 GB RAM safety).
+k8s-preflight:
+	@bash deploy/k8s/scripts/preflight.sh
+
+# Create the local cluster and load the AI Ops image. Build the image first:
+#   make docker-build-ai
+# Hard stop if InvenTree Compose is up to avoid OOM on an 8 GB laptop.
+k8s-up: k8s-preflight
+	@echo "WARNING: If InvenTree Docker Compose is running, stop it first with 'make docker-down' to avoid OOM on 8 GB RAM."
+	@docker compose -f $(COMPOSE_FILE) ps --quiet 2>/dev/null | grep -q . \
+		&& { echo "ERROR: Stop InvenTree stack first (make docker-down)"; exit 1; } || true
+	@kind get clusters 2>/dev/null | grep -qx $(KIND_CLUSTER) \
+		&& echo "kind cluster '$(KIND_CLUSTER)' already exists." \
+		|| kind create cluster --config $(KIND_CONFIG)
+	$(MAKE) k8s-load-images
+
+# kind runs an isolated runtime: host-built images MUST be loaded explicitly,
+# otherwise pods stay in ErrImagePull. Run AFTER `make docker-build-ai`.
+k8s-load-images:
+	@docker image inspect $(AI_IMAGE) >/dev/null 2>&1 \
+		|| { echo "ERROR: image $(AI_IMAGE) not found. Run 'make docker-build-ai' first."; exit 1; }
+	kind load docker-image $(AI_IMAGE) --name $(KIND_CLUSTER)
+
+# Install/upgrade the AI layer chart (AI Ops API only by default).
+k8s-deploy:
+	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \
+		-n $(K8S_NAMESPACE) --create-namespace \
+		-f $(HELM_CHART)/values.yaml -f $(HELM_CHART)/values-local.yaml \
+		--set aiApi.image.repository=$(word 1,$(subst :, ,$(AI_IMAGE))) \
+		--set aiApi.image.tag=$(word 2,$(subst :, ,$(AI_IMAGE)))
+
+k8s-status:
+	kubectl get nodes
+	kubectl get ns | grep -E 'invforge|NAME' || true
+	kubectl get pods,svc -n $(K8S_NAMESPACE)
+
+k8s-smoke:
+	@bash deploy/k8s/scripts/smoke.sh $(K8S_NAMESPACE) $(HELM_RELEASE)
+
+k8s-logs:
+	kubectl logs -n $(K8S_NAMESPACE) -l app.kubernetes.io/component=ai-api --tail=100 -f
+
+k8s-down:
+	kind delete cluster --name $(KIND_CLUSTER)
+
+# --- BentoML model server (deferred image build; one-command after PR-11A) ---
+# Prereq: a champion model packaged in the local BentoML store (make mlops-loop).
+bento-build:
+	BENTOML_DO_NOT_TRACK=true $(UV) run --group ml --group mlops \
+		bentoml build -f deploy/k8s/bentofile.yaml .
+
+# Containerize the latest Bento into a Docker image tagged $(BENTO_IMAGE).
+bento-containerize:
+	BENTOML_DO_NOT_TRACK=true $(UV) run --group ml --group mlops \
+		bentoml containerize invforge_demand_forecast:latest -t $(BENTO_IMAGE)
+
+k8s-load-bento:
+	@docker image inspect $(BENTO_IMAGE) >/dev/null 2>&1 \
+		|| { echo "ERROR: image $(BENTO_IMAGE) not found. Run 'make bento-build && make bento-containerize' first."; exit 1; }
+	kind load docker-image $(BENTO_IMAGE) --name $(KIND_CLUSTER)
+
+# --- Retraining image + Job (isolated image with ml+retraining groups) -------
+k8s-retrain-image:
+	docker build -f deploy/k8s/Dockerfile.retraining -t $(RETRAIN_IMAGE) .
+
+# Build the retraining image, load it into kind, and run a one-shot Job.
+k8s-retrain: k8s-retrain-image
+	kind load docker-image $(RETRAIN_IMAGE) --name $(KIND_CLUSTER)
+	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \
+		-n $(K8S_NAMESPACE) --create-namespace \
+		-f $(HELM_CHART)/values.yaml -f $(HELM_CHART)/values-local.yaml \
+		--set retraining.job.enabled=true \
+		--set retraining.image.repository=$(word 1,$(subst :, ,$(RETRAIN_IMAGE))) \
+		--set retraining.image.tag=$(word 2,$(subst :, ,$(RETRAIN_IMAGE)))
+	@echo "Retraining Job created. Follow it with:"
+	@echo "  kubectl get jobs,pods -n $(K8S_NAMESPACE) -l app.kubernetes.io/component=retraining"
+
+# --- Blue-green model switch (requires a deployed BentoML image) --------------
+model-switch-blue:
+	@bash deploy/k8s/scripts/model-switch.sh blue $(K8S_NAMESPACE) $(HELM_RELEASE)
+
+model-switch-green:
+	@bash deploy/k8s/scripts/model-switch.sh green $(K8S_NAMESPACE) $(HELM_RELEASE)
+
+# Rollback the blue-green Service selector to the stable (blue) color.
+model-switch-rollback:
+	@bash deploy/k8s/scripts/model-switch.sh blue $(K8S_NAMESPACE) $(HELM_RELEASE)

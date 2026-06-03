@@ -1,0 +1,28 @@
+# InvForge PR-11A — local kind cluster for the AI Operations Layer ONLY.
+#
+# Scope: this cluster hosts the external AI layer (AI Operations API now;
+# BentoML model server + retraining Job/CronJob as templates). InvenTree core
+# stays in app/ Docker Compose and is NEVER moved into Kubernetes (sidecar rule).
+#
+# Sizing: ONE control-plane node, no workers. This keeps the cluster small
+# enough to validate on an 8 GB laptop. Do NOT add worker nodes unless you
+# explicitly need them — more nodes = more memory pressure for no demo benefit.
+#
+# CNI: kindnet (default). kindnet does NOT enforce NetworkPolicy. The
+# NetworkPolicy manifests in the Helm chart are therefore structural
+# documentation by default. To get REAL enforcement, set `disableDefaultCNI: true`
+# below and install Calico (see docs/runbooks/k8s-startup.md, "NetworkPolicy
+# enforcement" section, and docs/adr/002-pr11a-kubernetes-scope.md).
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: invforge-local
+# networking:
+#   # Uncomment the next line (and install Calico after cluster creation) to make
+#   # NetworkPolicy enforcement real instead of structural. Adds RAM overhead.
+#   disableDefaultCNI: true
+nodes:
+  - role: control-plane
+    # Expose nothing by default: access to in-cluster Services is via
+    # `kubectl port-forward` (see the chart NOTES.txt). No host ports are bound
+    # so this never collides with a running InvenTree Compose stack.
+    image: kindest/node:v1.31.0

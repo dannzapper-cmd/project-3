@@ -1,0 +1,20 @@
+{{- if .Values.aiApi.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "invforge.fullname" . }}-ai-api
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    {{- include "invforge.aiApi.selectorLabels" . | nindent 4 }}
+spec:
+  # ClusterIP only on local kind; reach it via kubectl port-forward (NOTES.txt).
+  type: {{ .Values.aiApi.service.type }}
+  selector:
+    {{- include "invforge.aiApi.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.aiApi.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

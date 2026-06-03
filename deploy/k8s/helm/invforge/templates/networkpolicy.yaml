@@ -1,0 +1,101 @@
+{{- /*
+##############################################################################
+# NOTE: kindnet (the kind default CNI) does NOT enforce NetworkPolicy. With the
+# default cluster these manifests are STRUCTURAL DOCUMENTATION ONLY — they are
+# valid and applied, but the rules are not actually enforced. To enable REAL
+# enforcement: set `disableDefaultCNI: true` in deploy/k8s/kind-config.yaml and
+# install Calico (see docs/runbooks/k8s-startup.md "NetworkPolicy enforcement").
+# This trade-off is documented in docs/adr/002-pr11a-kubernetes-scope.md.
+#
+# Policy shape (kept deliberately simple — no network maze):
+#   1) default-deny all ingress in invforge-ai
+#   2) allow DNS egress (kube-dns) for every pod
+#   3) allow ingress to the AI API only from inside invforge-ai
+#   4) allow ingress to BentoML only from the AI API
+##############################################################################
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+# 1) Default-deny all ingress in the AI namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "invforge.fullname" . }}-default-deny-ingress
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# 2) Allow DNS egress (so pods can resolve in-cluster Service names).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "invforge.fullname" . }}-allow-dns-egress
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- if .Values.aiApi.enabled }}
+---
+# 3) Allow ingress to the AI API only from within invforge-ai.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "invforge.fullname" . }}-allow-ai-api-ingress
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "invforge.aiApi.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # NOTE: kubectl port-forward bypasses NetworkPolicy (it tunnels via the API
+    # server to the kubelet), so the smoke test still works regardless.
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.aiApi.containerPort }}
+{{- end }}
+{{- if .Values.bentoml.enabled }}
+---
+# 4) Allow ingress to BentoML only from the AI API pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "invforge.fullname" . }}-allow-bentoml-from-ai-api
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "invforge.bentoml.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "invforge.aiApi.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.bentoml.containerPort }}
+{{- end }}
+{{- end }}

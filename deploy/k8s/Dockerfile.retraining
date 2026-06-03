@@ -1,0 +1,60 @@
+# InvForge retraining image (PR-11A) — used ONLY by the Kubernetes retraining
+# Job/CronJob. This is intentionally SEPARATE from the AI Ops API runtime image
+# (../../Dockerfile), which excludes the heavy ml/retraining groups to stay
+# small. Here we DO install them so `python -m mlops.retraining.runner` works.
+#
+# Build (from repo root) via the Makefile so the tag is consistent:
+#   make k8s-retrain-image      # -> invforge-retraining:local
+#   make k8s-retrain            # build + kind load + create Job
+#
+# Scope: local/demo only. Retraining runs in smoke mode (deterministic, fast,
+# no running server). ZenML uses a local SQLite stack that is ephemeral per Job
+# run; persistent pipeline state (PVC) is deferred to PR-11B / production.
+
+# ---- Builder: resolve venv with the ml + retraining groups ----------------
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
+
+WORKDIR /app
+
+COPY pyproject.toml ./
+
+# Core deps + ml + retraining groups (LightGBM, MLflow, ZenML, Optuna, ...).
+RUN uv sync --no-dev --no-install-project --group ml --group retraining
+
+# ---- Runtime --------------------------------------------------------------
+FROM python:3.12-slim-bookworm AS runtime
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    MLFLOW_ALLOW_FILE_STORE=true \
+    BENTOML_DO_NOT_TRACK=true \
+    ZENML_ANALYTICS_OPT_IN=false \
+    RETRAINING_MODE=smoke
+
+WORKDIR /app
+
+# Non-root runtime user (matches the AI Ops image convention).
+RUN useradd --create-home --uid 10001 appuser
+
+COPY --from=builder /app/.venv /app/.venv
+
+# Source needed to run the retraining pipeline end to end (offline, synthetic).
+COPY pyproject.toml ./
+COPY mlops ./mlops
+COPY ml ./ml
+COPY data ./data
+COPY api ./api
+
+# Writable dirs for the ephemeral ZenML/MLflow local state and generated data.
+RUN mkdir -p /app/.zenml_local /app/mlruns /app/artifacts \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+# Default to a one-shot smoke retrain; the Job/CronJob overrides command/mode.
+CMD ["python", "-m", "mlops.retraining.runner", "retrain", "--mode", "smoke"]

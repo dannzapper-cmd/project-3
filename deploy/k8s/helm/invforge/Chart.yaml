@@ -1,0 +1,19 @@
+apiVersion: v2
+name: invforge
+description: |
+  InvForge AI Operations Layer — local Kubernetes chart (PR-11A).
+  Deploys ONLY the external AI layer (AI Operations API now; BentoML model
+  server and retraining Job/CronJob as opt-in templates). InvenTree core stays
+  in Docker Compose and is never deployed by this chart (sidecar architecture).
+type: application
+# Chart version tracks the chart packaging; appVersion tracks the AI Ops API.
+version: 0.1.0
+appVersion: "0.2.0"
+keywords:
+  - invforge
+  - mlops
+  - ai-operations
+  - kind
+home: https://github.com/dannzapper-cmd/invforge
+maintainers:
+  - name: InvForge

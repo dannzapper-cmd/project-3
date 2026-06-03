@@ -1,0 +1,65 @@
+{{- if .Values.aiApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "invforge.fullname" . }}-ai-api
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    {{- include "invforge.aiApi.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.aiApi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "invforge.aiApi.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "invforge.labels" . | nindent 8 }}
+        {{- include "invforge.aiApi.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Roll pods when config/secret content changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: {{ .Values.aiApi.securityContext.runAsNonRoot }}
+        seccompProfile:
+          {{- toYaml .Values.aiApi.securityContext.seccompProfile | nindent 10 }}
+      containers:
+        - name: ai-api
+          image: "{{ .Values.aiApi.image.repository }}:{{ .Values.aiApi.image.tag }}"
+          imagePullPolicy: {{ .Values.aiApi.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.aiApi.containerPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "invforge.fullname" . }}-config
+          {{- if .Values.secret.create }}
+            - secretRef:
+                name: {{ include "invforge.fullname" . }}-secret
+          {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.aiApi.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.aiApi.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.aiApi.resources | nindent 12 }}
+          securityContext:
+            runAsUser: {{ .Values.aiApi.securityContext.runAsUser }}
+            allowPrivilegeEscalation: {{ .Values.aiApi.securityContext.allowPrivilegeEscalation }}
+            readOnlyRootFilesystem: {{ .Values.aiApi.securityContext.readOnlyRootFilesystem }}
+            capabilities:
+              {{- toYaml .Values.aiApi.securityContext.capabilities | nindent 14 }}
+          {{- if .Values.aiApi.securityContext.readOnlyRootFilesystem }}
+          volumeMounts:
+            # /tmp must be writable even with a read-only root filesystem.
+            - name: tmp
+              mountPath: /tmp
+          {{- end }}
+      {{- if .Values.aiApi.securityContext.readOnlyRootFilesystem }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- end }}
+{{- end }}
