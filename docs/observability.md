@@ -198,3 +198,18 @@ value contains a path separator. Exits non-zero on any failure.
   pipeline state, not live InvenTree demand.
 - Prometheus retention is short (local TSDB) and Grafana credentials are
   local-only dev defaults.
+
+## 11. PR-11B — Kubernetes observability + lineage (optional)
+
+PR-11B adds an optional, in-cluster observability stack (Prometheus, Grafana,
+Loki, Promtail, Tempo, AlertManager, OTel Collector, local webhook receiver) and
+an optional Marquez/OpenLineage lineage profile for the AI layer on local kind.
+They are separate from this PR-07 Docker-Compose stack and from `make k8s-up`.
+
+- Targets: `make obs-k8s-up | obs-k8s-smoke | obs-k8s-alert-test` and
+  `make lineage-up | lineage-smoke` (and matching `*-down`).
+- Truth: metrics, logs, and alerts are real and validated; traces are deployed
+  as idle OTLP backends pending API instrumentation (deferred).
+- Docs: `docs/adr/003-pr11b-observability-lineage-scope.md`, and runbooks
+  `observability-startup.md`, `grafana-inspection.md`, `alertmanager-test.md`,
+  `otel-tracing.md`, `lineage-inspection.md`.

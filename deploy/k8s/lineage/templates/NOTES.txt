@@ -1,0 +1,21 @@
+InvForge lineage (Marquez) installed into namespace: {{ .Values.namespace }}
+
+OPTIONAL profile, separate from observability. Local/dev only; ephemeral DB.
+
+Port-forward the Marquez UI + API (or use `make lineage-port-forward`):
+
+  kubectl -n {{ .Values.namespace }} port-forward svc/marquez-web {{ .Values.marquezWeb.port }}:{{ .Values.marquezWeb.port }}
+  kubectl -n {{ .Values.namespace }} port-forward svc/marquez-api {{ .Values.marquezApi.port }}:{{ .Values.marquezApi.port }}
+
+  Marquez UI:  http://localhost:{{ .Values.marquezWeb.port }}
+  Marquez API: http://localhost:{{ .Values.marquezApi.port }}
+
+Emit a REAL lineage event from the verified retraining pipeline, then inspect:
+
+  export OPENLINEAGE_URL=http://localhost:{{ .Values.marquezApi.port }}
+  make retrain-smoke
+  curl -s http://localhost:{{ .Values.marquezApi.port }}/api/v1/namespaces/invforge/jobs | head
+
+The retraining wrapper (mlops/retraining/lineage.py) is ENV-GATED: with
+OPENLINEAGE_URL unset it does nothing, so the default retrain path is unchanged.
+See docs/runbooks/lineage-inspection.md.

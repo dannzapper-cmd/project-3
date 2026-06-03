@@ -1,0 +1,149 @@
+{
+  "annotations": { "list": [] },
+  "description": "InvForge AI Operations — Kubernetes observability (PR-11B). Local/dev only. All metric panels use the verified PR-07 metric contract.",
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "up{job=\"invforge-ai\"}", "instant": true, "refId": "A" } ],
+      "title": "AI API up (job=invforge-ai)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "-1": { "color": "blue", "text": "UNKNOWN" } }, "type": "value" },
+            { "options": { "0": { "color": "green", "text": "NO DRIFT" } }, "type": "value" },
+            { "options": { "1": { "color": "red", "text": "DRIFT" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "invforge_drift_detected", "instant": true, "refId": "A" } ],
+      "title": "Drift detected (-1 = unknown)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "text", "text": "NOT PACKAGED" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "text": "PACKAGED" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "invforge_bentoml_packaged", "instant": true, "refId": "A" } ],
+      "title": "BentoML packaged status",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "MISSING" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "text": "OK" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 5 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "invforge_artifact_available", "instant": true, "legendFormat": "{{artifact}}", "refId": "A" } ],
+      "title": "Artifact availability overview",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1 }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (status_code) (rate(invforge_api_requests_total[5m]))", "legendFormat": "{{status_code}}", "refId": "A" } ],
+      "title": "API request rate by status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1 }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 6,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum by (le, method, endpoint) (rate(invforge_api_request_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{method}} {{endpoint}}", "refId": "A" } ],
+      "title": "API request p95 latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 19 },
+      "id": 7,
+      "options": { "showHeader": true },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "ALERTS{alertstate=\"firing\"}", "format": "table", "instant": true, "refId": "A" } ],
+      "title": "Firing alerts (Prometheus ALERTS)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 26 },
+      "id": 8,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [ { "datasource": { "type": "loki", "uid": "loki" }, "expr": "{namespace=\"invforge-ai\"}", "refId": "A" } ],
+      "title": "AI layer logs (Loki, namespace=invforge-ai)",
+      "type": "logs"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 36 },
+      "id": 9,
+      "options": {
+        "content": "### Traces pending API instrumentation\n\nTempo is deployed as an OTLP backend (`http://tempo:3200`) and is **ready to receive**, but the AI API is **not OTEL-instrumented yet**, so there are no traces to show. Enabling traces (opentelemetry-fastapi + opentelemetry-sdk in the API, exporting to `otel-collector:4317`) is **deferred** — see `docs/runbooks/otel-tracing.md` and ADR 003.",
+        "mode": "markdown"
+      },
+      "title": "Traces (Tempo)",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["invforge", "observability", "kubernetes", "local-dev"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "InvForge AI Operations — Observability (kind/PR-11B)",
+  "uid": "invforge-obs-k8s",
+  "version": 1
+}

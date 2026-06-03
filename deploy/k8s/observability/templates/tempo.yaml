@@ -1,0 +1,124 @@
+{{- if .Values.tempo.enabled }}
+{{- /*
+Tempo single-binary, deployed as an OTLP trace BACKEND. No traces are emitted
+yet (the AI API is not OTEL-instrumented — see ADR 003 / otel-tracing.md). It
+runs idle, ready to receive. This is correct and honest, not theater.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tempo
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: {{ .Values.tempo.httpPort }}
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:{{ .Values.tempo.otlpGrpcPort }}
+            http:
+              endpoint: 0.0.0.0:{{ .Values.tempo.otlpHttpPort }}
+    ingester:
+      max_block_duration: 5m
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/blocks
+        wal:
+          path: /var/tempo/wal
+    usage_report:
+      reporting_enabled: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tempo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: tempo
+  template:
+    metadata:
+      labels:
+        {{- include "obs.labels" . | nindent 8 }}
+        app.kubernetes.io/component: tempo
+      annotations:
+        checksum/config: {{ toYaml $.Values | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tempo
+          image: {{ .Values.tempo.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          args:
+            - -config.file=/etc/tempo/tempo.yaml
+          ports:
+            - name: http
+              containerPort: {{ .Values.tempo.httpPort }}
+            - name: otlp-grpc
+              containerPort: {{ .Values.tempo.otlpGrpcPort }}
+            - name: otlp-http
+              containerPort: {{ .Values.tempo.otlpHttpPort }}
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.tempo.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+            - name: data
+              mountPath: /var/tempo
+      volumes:
+        - name: config
+          configMap:
+            name: tempo-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tempo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: tempo
+  ports:
+    - name: http
+      port: {{ .Values.tempo.httpPort }}
+      targetPort: http
+    - name: otlp-grpc
+      port: {{ .Values.tempo.otlpGrpcPort }}
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: {{ .Values.tempo.otlpHttpPort }}
+      targetPort: otlp-http
+{{- end }}

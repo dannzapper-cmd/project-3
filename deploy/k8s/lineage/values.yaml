@@ -1,0 +1,37 @@
+# InvForge lineage (Marquez) — default values (PR-11B). Local/dev only.
+# Ephemeral embedded PostgreSQL (emptyDir). Access via kubectl port-forward.
+# RAM budget (per ADR 003): requests ~0.5Gi, limits ~1.5Gi.
+
+namespace: invforge-lineage
+imagePullPolicy: IfNotPresent
+
+postgres:
+  image: postgres:15-alpine
+  port: 5432
+  db: marquez
+  user: marquez
+  # LOCAL/DEV ONLY, ephemeral throwaway DB (mirrors the grafana admin/admin
+  # pattern). NOT a secret and never reused. Do not use in production.
+  password: marquez
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 250m, memory: 512Mi }
+
+marquezApi:
+  image: marquezproject/marquez:0.49.0
+  port: 5000
+  adminPort: 5001
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits: { cpu: 400m, memory: 512Mi }
+
+marquezWeb:
+  image: marquezproject/marquez-web:0.49.0
+  port: 3000
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+
+commonLabels:
+  app.kubernetes.io/part-of: invforge
+  invforge.io/layer: lineage
