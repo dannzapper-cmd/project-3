@@ -67,3 +67,7 @@ artifacts/security/*.csv
 bentoml/
 .bentoml/
 *.bento
+
+# ZenML local stack metadata (PR-09; local SQLite default, never committed)
+.zenml/
+.zenml_local/
