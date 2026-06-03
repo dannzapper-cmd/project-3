@@ -130,6 +130,14 @@ baseline training behavior remains unchanged.
   champion/challenger comparison, and minimal BentoML packaging — see
   [`docs/mlops.md`](../mlops.md). Kubernetes/cluster serving is intentionally
   deferred.
+- **PR-09 (done):** Local ZenML + Optuna retraining lifecycle with a
+  conservative champion/challenger promotion gate and a safe, dry-run-by-default
+  rollback path — see [`docs/retraining-pipeline.md`](../retraining-pipeline.md).
+  The model lifecycle is now: PR-03 trains the baseline; PR-05 registers the
+  `champion` alias; PR-09 retrains candidates and promotes them only when they
+  beat the champion on the primary metric (`mae`) by the configured threshold,
+  recording the previous champion as the rollback target. PR-03 baseline
+  training behaviour is unchanged.
 - **PR-10 / PR-11 Senior Edition:** Model serving/deployment packaging,
   Kubernetes (k3s/Helm), and foundation model benchmarks (Chronos-2/TimesFM) and
   TFT/N-BEATS comparison.

@@ -100,6 +100,33 @@ decision-intel: generate-data
 mlops-loop: generate-data
 	MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true BENTOML_DO_NOT_TRACK=true $(UV) run --group ml --group mlops python -m mlops.loop --config mlops/config.yaml --ml-config ml/config.yaml
 
+# PR-09 local retraining pipeline (ZenML local DAG + Optuna + safe rollback).
+# Smoke mode is deterministic and fast (small subset, no tuning) and does NOT
+# require BentoML or a running server. Generates synthetic data first so the
+# pipeline is self-contained.
+RETRAIN_ENV := MLFLOW_TRACKING_URI=mlruns MLFLOW_ALLOW_FILE_STORE=true BENTOML_DO_NOT_TRACK=true ZENML_ANALYTICS_OPT_IN=false
+
+retrain-smoke: generate-data
+	$(RETRAIN_ENV) RETRAINING_MODE=smoke $(UV) run --group ml --group retraining python -m mlops.retraining.runner retrain --mode smoke
+
+retrain: generate-data
+	$(RETRAIN_ENV) RETRAINING_MODE=full $(UV) run --group ml --group retraining python -m mlops.retraining.runner retrain --mode full
+
+retrain-tune: generate-data
+	$(RETRAIN_ENV) RETRAINING_MODE=smoke $(UV) run --group ml --group retraining python -m mlops.retraining.runner retrain --mode smoke --tune
+
+# Offline validation of the generated retraining artifacts (no training).
+retraining-check:
+	$(RETRAIN_ENV) $(UV) run --group ml --group retraining python -m mlops.retraining.runner check --mode smoke
+
+# Rollback is DRY-RUN by default and mutates nothing. Use model-rollback-confirm
+# (or ROLLBACK_CONFIRM=true) to actually move the champion alias.
+model-rollback:
+	$(RETRAIN_ENV) $(UV) run --group ml --group retraining python -m mlops.retraining.runner rollback --mode smoke
+
+model-rollback-confirm:
+	$(RETRAIN_ENV) ROLLBACK_CONFIRM=true $(UV) run --group ml --group retraining python -m mlops.retraining.runner rollback --mode smoke --confirm
+
 # PR-06 AI Operations Dashboard (read-only artifact visualization).
 dashboard:
 	$(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true

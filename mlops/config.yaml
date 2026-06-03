@@ -73,3 +73,52 @@ champion_challenger:
 bentoml:
   enabled: true
   model_name: invforge_demand_forecast
+
+# PR-09 local retraining pipeline (ZenML + Optuna + safe rollback).
+#
+# Local, offline, deterministic. Smoke mode is fast and bounded; full mode keeps
+# conservative defaults. Hard bounds on Optuna trials are also enforced in code
+# (smoke <= 3, full <= 20) so config edits cannot trigger expensive tuning.
+retraining:
+  pipeline_name: invforge_retraining
+  primary_metric: mae
+  metric_direction: lower_is_better
+  # Minimum relative improvement (percent) on the primary metric required to
+  # promote a candidate over the current champion. Conservative by default.
+  promotion_threshold_pct: 5.0
+  random_seed: 42
+  artifacts_dir: artifacts/retraining
+  modes:
+    smoke:
+      max_items: 10
+      max_days: 90
+      lightgbm_n_estimators: 60
+      optuna_trials: 2
+      optuna_timeout_seconds: 60
+    full:
+      max_items: null
+      max_days: null
+      lightgbm_n_estimators: 200
+      optuna_trials: 15
+      optuna_timeout_seconds: 600
+  optuna:
+    # Tuning is OPTIONAL and OFF by default. Enable per-run via --tune / env.
+    enabled_default: false
+  mlflow:
+    tracking_uri: mlruns
+    # Dedicated experiment for retraining runs (kept separate from PR-03).
+    experiment_name: demand_forecast_retraining
+    # Source experiment used only to bootstrap a champion if no registry alias
+    # exists yet (read-only).
+    forecast_experiment: demand_forecast_baseline
+    # Reuse the PR-05 registry/alias conventions exactly.
+    registered_model_name: demand_forecast
+    champion_alias: champion
+    previous_champion_alias: previous_champion
+    model_artifact: lightgbm_model
+    candidate_tag: pr09_candidate_run_id
+  bentoml:
+    # Reuse PR-05 packaging after a promotion only. Off by default so
+    # retrain-smoke never requires BentoML.
+    enabled: false
+    model_name: invforge_demand_forecast

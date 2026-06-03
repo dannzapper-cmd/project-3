@@ -210,6 +210,26 @@ offline" goal and would overlap the later deployment PRs. Keeping the boundary
 crisp lets PR-05 stay reviewable and reproducible while leaving real serving and
 orchestration to the PRs designed for it.
 
+## Retraining loop (PR-09)
+
+PR-05 establishes the champion alias and comparison **from existing artifacts**.
+PR-09 builds on top of it with an actual **retraining lifecycle**: a local ZenML
+pipeline trains a fresh candidate, optionally tunes it with bounded Optuna,
+re-evaluates the current champion on the candidate's exact test split, and
+**promotes only if a conservative gate passes**. Rejected/failed candidates
+never overwrite the champion, and a safe (dry-run-by-default) rollback path is
+always produced. PR-09 reuses this PR-05 registry/alias convention and the
+BentoML packaging path unchanged.
+
+See [`docs/retraining-pipeline.md`](retraining-pipeline.md) for the full
+lifecycle, promotion gate, rollback contract, artifact schemas, and scheduling
+readiness. Quick start:
+
+```bash
+uv sync --group dev --group ml --group retraining
+make retrain-smoke && make retraining-check && make model-rollback
+```
+
 ## Limitations summary
 
 - **Synthetic data only** (seed 42); nothing here reflects live InvenTree
