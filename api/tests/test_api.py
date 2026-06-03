@@ -14,8 +14,43 @@ from api.main import create_app
 async def test_health_endpoint(test_client: AsyncClient) -> None:
     response = await test_client.get("/health")
 
+    assert response.status_code in {200, 503}
+    payload = response.json()
+    assert payload["pr_stage"] == "PR-07"
+    assert payload["status"] in {"ok", "degraded", "unavailable"}
+    assert set(payload["artifacts"]) == {
+        "decision_summary",
+        "decision_recommendations",
+        "mlops_loop_summary",
+        "registry_summary",
+        "champion_challenger_comparison",
+    }
+    assert payload["champion_challenger_decision"] in {
+        "promote_challenger",
+        "keep_champion",
+        "manual_review",
+        "no_comparison",
+        "unknown",
+    }
+    # Health must never leak file paths.
+    assert "/workspace" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint_exposes_prometheus_metrics(
+    test_client: AsyncClient,
+) -> None:
+    pytest.importorskip("prometheus_client")
+    response = await test_client.get("/metrics")
+
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "invforge-api"}
+    body = response.text
+    assert "invforge_service_info" in body
+    assert "invforge_artifact_available" in body
+    assert "invforge_drift_detected" in body
+    assert "invforge_champion_challenger_decision" in body
+    # Counter incremented by the request middleware for this very request set.
+    assert "invforge_api_requests_total" in body
 
 
 @pytest.mark.asyncio
@@ -153,4 +188,3 @@ async def test_ingest_endpoint_error_does_not_leak_token(
     assert response.status_code == 502
     assert "test-token" not in response.text
     assert "test-token" not in caplog.text
-

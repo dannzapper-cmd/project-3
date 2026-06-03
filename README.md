@@ -198,6 +198,29 @@ make ingest-inventree
 
 Raw snapshots are written to `data/raw/inventree/`; normalized CSVs are written to `data/processed/`. These generated folders are ignored by git. Never commit real tokens or passwords.
 
+### 10. Observability (PR-07, local/dev only)
+
+The AI Operations API exposes a `/health` status endpoint and a Prometheus
+`/metrics` endpoint. An optional local Prometheus + Grafana stack visualizes
+them.
+
+```bash
+# Start the API with /health and /metrics:
+make UV="uv" observability-api          # http://localhost:8001/health, /metrics
+
+# Optional local Prometheus + Grafana (Docker):
+make UV="uv" observability-up           # Grafana: http://localhost:3000 (admin/admin, dev-only)
+make UV="uv" observability-down
+
+# Offline smoke check (no Docker, no server):
+make UV="uv" observability-smoke
+```
+
+This is **local/dev observability only** — not production monitoring. See
+`docs/observability.md` for metric definitions, the health contract, Grafana
+provisioning, and what is intentionally deferred (LGTM stack, alerting, cloud,
+Kubernetes).
+
 ## Makefile commands
 
 | Command | Description |
