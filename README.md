@@ -241,6 +241,10 @@ Kubernetes).
 | `make mlops-loop` | Run PR-05 local MLOps loop (drift, registry, champ/chal, BentoML) |
 | `make dashboard` | Launch PR-06 Streamlit AI Operations dashboard |
 | `make dashboard-smoke` | Non-interactive dashboard loader smoke check |
+| `make deploy-validate` | Validate PR-10 deploy profiles/templates (offline) |
+| `make deploy-smoke` | Read-only smoke check (`BASE_URL=...`) against a running API |
+| `make docker-build-ai` | Build the deployable AI Operations Layer image |
+| `make docker-smoke` | Build + run (demo) the AI Ops container and smoke it |
 | `make lint` | Run Ruff linter |
 | `make test` | Run pytest |
 | `make secrets-scan` | Run detect-secrets scan |
