@@ -1,0 +1,44 @@
+{
+  "name": "invforge-ai-ops-waf",
+  "type": "Microsoft.Network/FrontDoorWebApplicationFirewallPolicies",
+  "location": "Global",
+  "_note": "InvForge AI Operations Layer WAF policy TEMPLATE (PR-10). Placeholders only; NOT a live resource. Attach to Azure Front Door (or use Application Gateway WAF v2) fronting the Container App. WAF is not active until deployed with your own Azure subscription. Front Door/App Gateway architecture is required; Container Apps ingress alone does not provide WAF.",
+  "sku": { "name": "Premium_AzureFrontDoor" },
+  "properties": {
+    "policySettings": {
+      "enabledState": "Enabled",
+      "mode": "Prevention"
+    },
+    "managedRules": {
+      "managedRuleSets": [
+        {
+          "ruleSetType": "Microsoft_DefaultRuleSet",
+          "ruleSetVersion": "2.1"
+        },
+        {
+          "ruleSetType": "Microsoft_BotManagerRuleSet",
+          "ruleSetVersion": "1.0"
+        }
+      ]
+    },
+    "customRules": {
+      "rules": [
+        {
+          "name": "PerIpRateLimit",
+          "priority": 100,
+          "ruleType": "RateLimitRule",
+          "rateLimitDurationInMinutes": 1,
+          "rateLimitThreshold": 1000,
+          "matchConditions": [
+            {
+              "matchVariable": "RemoteAddr",
+              "operator": "IPMatch",
+              "matchValue": ["0.0.0.0/0"]
+            }
+          ],
+          "action": "Block"
+        }
+      ]
+    }
+  }
+}
