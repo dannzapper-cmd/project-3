@@ -1,0 +1,15 @@
+# Local/dev Grafana dashboard provider. Auto-loads the InvForge AI Operations
+# dashboard on first startup so no manual import is required.
+apiVersion: 1
+
+providers:
+  - name: invforge
+    orgId: 1
+    folder: InvForge
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/invforge
+      foldersFromFilesStructure: false

@@ -97,6 +97,25 @@ dashboard:
 dashboard-smoke:
 	$(UV) run --group dashboard python -m dashboard.smoke
 
+# PR-07 observability: launch the AI Operations API exposing /health and
+# /metrics. Local URL: http://localhost:$(INVFORGE_API_PORT)
+# (e.g. http://localhost:8001/health and http://localhost:8001/metrics).
+observability-api:
+	INVFORGE_API_PORT=$(INVFORGE_API_PORT) $(UV) run --group observability uvicorn api.main:app --host 0.0.0.0 --port $(INVFORGE_API_PORT)
+
+# Start/stop the independent local Prometheus + Grafana stack (Docker only).
+# Grafana: http://localhost:3000 (local-only dev creds admin/admin).
+# Prometheus: http://localhost:9090. Does NOT touch InvenTree compose.
+observability-up:
+	docker compose -f $(OBS_COMPOSE_FILE) up -d
+
+observability-down:
+	docker compose -f $(OBS_COMPOSE_FILE) down
+
+# Offline smoke test: no Docker, no server, no browser. Runs in < 10s.
+observability-smoke:
+	$(UV) run --group observability python -m observability.smoke
+
 lint:
 	$(UV) run ruff check .
 

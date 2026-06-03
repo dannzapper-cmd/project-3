@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
 import structlog
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 
 from api.config import Settings
 from api.ingestion import data_summary, ingest_inventree
 from api.inventree import InvenTreeClient, InvenTreeClientError
 from api.logging import configure_logging
 from api.validation import DataValidationError, validate_processed_data
+from observability.health import build_health_status
+
+try:
+    from observability import metrics as obs_metrics
+
+    _METRICS_AVAILABLE = True
+except ImportError:  # prometheus-client lives in the optional observability group
+    obs_metrics = None  # type: ignore[assignment]
+    _METRICS_AVAILABLE = False
 
 
 def _build_inventree_client(settings: Settings) -> InvenTreeClient:
@@ -44,9 +55,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
+    if _METRICS_AVAILABLE:
+        obs_metrics.init_service_info()
+
+        @app.middleware("http")
+        async def _record_request_metrics(request: Request, call_next):
+            start = time.perf_counter()
+            try:
+                response = await call_next(request)
+            except Exception:
+                obs_metrics.record_request(
+                    request.method,
+                    request.url.path,
+                    500,
+                    time.perf_counter() - start,
+                )
+                raise
+            obs_metrics.record_request(
+                request.method,
+                request.url.path,
+                response.status_code,
+                time.perf_counter() - start,
+            )
+            return response
+
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok", "service": "invforge-api"}
+    async def health() -> JSONResponse:
+        payload = build_health_status()
+        status_code = 503 if payload["status"] == "unavailable" else 200
+        return JSONResponse(content=payload, status_code=status_code)
+
+    @app.get("/metrics")
+    async def metrics() -> Response:
+        if not _METRICS_AVAILABLE:
+            return JSONResponse(
+                content={
+                    "status": "unavailable",
+                    "detail": (
+                        "Metrics require the optional observability dependency "
+                        "group (prometheus-client)."
+                    ),
+                },
+                status_code=503,
+            )
+        payload, content_type = obs_metrics.render_latest()
+        return Response(content=payload, media_type=content_type)
 
     @app.get("/v1/inventory/status")
     async def inventory_status() -> dict[str, Any]:
@@ -104,4 +157,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 app = create_app()
-
