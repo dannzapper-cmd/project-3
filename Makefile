@@ -5,11 +5,12 @@ UV ?= uv
 COMPOSE_FILE := app/docker-compose.yml
 COMPOSE_ENV := app/.env
 COMPOSE := docker compose -f $(COMPOSE_FILE) --env-file $(COMPOSE_ENV)
+OBSERVABILITY_COMPOSE := observability/docker-compose.observability.yml
 OUTPUT_DIR := data/synthetic/output
 SEED := 42
 INVFORGE_API_PORT ?= 8001
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke lint test secrets-scan ci
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke lint test secrets-scan ci
 
 help:
 	@echo "InvForge — available targets:"
@@ -29,6 +30,10 @@ help:
 	@echo "  mlops-loop      Run PR-05 local MLOps loop"
 	@echo "  dashboard       Launch PR-06 Streamlit AI Operations dashboard"
 	@echo "  dashboard-smoke Non-interactive dashboard loader smoke check"
+	@echo "  observability-api   Start the AI Ops API with /health and /metrics (uvicorn)"
+	@echo "  observability-up    Start local Prometheus + Grafana (Docker)"
+	@echo "  observability-down  Stop local Prometheus + Grafana (Docker)"
+	@echo "  observability-smoke Offline observability health/metrics smoke check"
 	@echo "  lint            Run Ruff linter"
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
@@ -107,10 +112,10 @@ observability-api:
 # Grafana: http://localhost:3000 (local-only dev creds admin/admin).
 # Prometheus: http://localhost:9090. Does NOT touch InvenTree compose.
 observability-up:
-	docker compose -f $(OBS_COMPOSE_FILE) up -d
+	docker compose -f $(OBSERVABILITY_COMPOSE) up -d
 
 observability-down:
-	docker compose -f $(OBS_COMPOSE_FILE) down
+	docker compose -f $(OBSERVABILITY_COMPOSE) down
 
 # Offline smoke test: no Docker, no server, no browser. Runs in < 10s.
 observability-smoke:
