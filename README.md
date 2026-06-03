@@ -258,7 +258,7 @@ Kubernetes).
 | **PR-06** | AI Operations Dashboard — Streamlit local control tower |
 | PR-07 | Observability — Prometheus, Grafana |
 | PR-08 | Defensive security |
-| PR-09 | Retraining pipeline — ZenML, Optuna |
+| PR-09 | Retraining pipeline — ZenML, Optuna, gated promotion, safe rollback |
 | PR-10 | Cloud deploy profiles |
 | PR-11 | Senior Edition — k8s, LGTM, foundation models |
 | PR-12 | Full QA / audit |
