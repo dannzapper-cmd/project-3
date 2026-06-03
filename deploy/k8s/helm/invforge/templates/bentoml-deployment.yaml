@@ -1,0 +1,64 @@
+{{- /*
+##############################################################################
+# DISABLED: requires `make bento-build && make bento-containerize` first.
+# The BentoML container image does NOT exist yet (PR-11A ships the entrypoint
+# mlops/service.py only). Until the image is built and loaded into kind, keep
+# bentoml.enabled=false. Setting it true without the image leaves pods in
+# ErrImagePull. Blue-green (blue/green deployments + one Service selector) is
+# templated below but is NOT considered "implemented" until the image is real.
+# See docs/adr/002-pr11a-kubernetes-scope.md and
+# docs/runbooks/model-rollback.md.
+##############################################################################
+*/}}
+{{- if .Values.bentoml.enabled }}
+{{- range $color, $cfg := .Values.bentoml.versions }}
+{{- if $cfg.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "invforge.fullname" $ }}-bentoml-{{ $color }}
+  namespace: {{ include "invforge.namespace" $ }}
+  labels:
+    {{- include "invforge.labels" $ | nindent 4 }}
+    {{- include "invforge.bentoml.selectorLabels" $ | nindent 4 }}
+    invforge.io/model-color: {{ $color }}
+    invforge.io/model-version: {{ $cfg.modelVersion }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "invforge.bentoml.selectorLabels" $ | nindent 6 }}
+      invforge.io/model-color: {{ $color }}
+  template:
+    metadata:
+      labels:
+        {{- include "invforge.labels" $ | nindent 8 }}
+        {{- include "invforge.bentoml.selectorLabels" $ | nindent 8 }}
+        invforge.io/model-color: {{ $color }}
+        invforge.io/model-version: {{ $cfg.modelVersion }}
+    spec:
+      securityContext:
+        runAsNonRoot: {{ $.Values.bentoml.securityContext.runAsNonRoot }}
+        seccompProfile:
+          {{- toYaml $.Values.bentoml.securityContext.seccompProfile | nindent 10 }}
+      containers:
+        - name: bentoml
+          image: "{{ $.Values.bentoml.image.repository }}:{{ $.Values.bentoml.image.tag }}"
+          imagePullPolicy: {{ $.Values.bentoml.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $.Values.bentoml.containerPort }}
+          livenessProbe:
+            {{- toYaml $.Values.bentoml.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml $.Values.bentoml.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml $.Values.bentoml.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: {{ $.Values.bentoml.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              {{- toYaml $.Values.bentoml.securityContext.capabilities | nindent 14 }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

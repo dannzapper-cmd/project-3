@@ -1,0 +1,42 @@
+InvForge AI Operations Layer (PR-11A) installed into namespace: {{ .Values.namespaces.ai }}
+
+Release: {{ .Release.Name }}
+Chart:   {{ .Chart.Name }}-{{ .Chart.Version }} (appVersion {{ .Chart.AppVersion }})
+
+ACCESS — local kind uses ClusterIP + kubectl port-forward (NOT LoadBalancer/NodePort):
+
+  kubectl port-forward -n {{ .Values.namespaces.ai }} \
+    svc/{{ include "invforge.fullname" . }}-ai-api {{ .Values.aiApi.service.port }}:{{ .Values.aiApi.service.port }}
+
+Then in another terminal:
+
+  curl -fsS http://localhost:{{ .Values.aiApi.service.port }}/health
+  curl -fsS http://localhost:{{ .Values.aiApi.service.port }}/metrics
+
+CHECK STATUS:
+
+  kubectl get pods -n {{ .Values.namespaces.ai }}
+  kubectl get svc  -n {{ .Values.namespaces.ai }}
+
+{{- if not .Values.bentoml.enabled }}
+
+BentoML model server: DISABLED. The container image does not exist yet. Build it
+with `make bento-build && make bento-containerize && make k8s-load-bento`, then
+`helm upgrade ... --set bentoml.enabled=true`. Blue-green switching is templated
+but only operable once a real image is deployed.
+{{- end }}
+
+{{- if not .Values.retraining.job.enabled }}
+
+Retraining Job: not created by this release (retraining.job.enabled=false). It
+uses a SEPARATE image (invforge-retraining). Run `make k8s-retrain` to build the
+image, load it into kind, and create the Job. See
+docs/runbooks/retraining-manual-trigger.md.
+{{- end }}
+
+NOTES:
+- NetworkPolicy manifests are {{ if .Values.networkPolicy.enabled }}rendered but NOT enforced by kindnet (structural only — see docs/adr/002-pr11a-kubernetes-scope.md){{ else }}disabled{{ end }}.
+- Redis inference caching is intentionally NOT included in PR-11A (no cache
+  integration exists in the API layer). Deferred to PR-11B / production hardening.
+- LGTM, OpenTelemetry Collector, AlertManager, OpenLineage/Marquez are deferred
+  to PR-11B. The '{{ .Values.namespaces.observability }}' namespace is a reserved placeholder only.

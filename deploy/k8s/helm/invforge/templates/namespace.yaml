@@ -1,0 +1,28 @@
+{{- /*
+Namespace management. The chart can create the AI layer namespace (and an
+optional reserved observability placeholder for PR-11B). If you prefer to manage
+namespaces outside the chart, set namespaces.create=false and create them with:
+  kubectl create namespace invforge-ai
+*/}}
+{{- if .Values.namespaces.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespaces.ai }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: namespace
+{{- if .Values.namespaces.createObservability }}
+---
+# Reserved placeholder ONLY. PR-11A deploys nothing here. PR-11B will host the
+# LGTM stack, OpenTelemetry Collector, and AlertManager in this namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespaces.observability }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: namespace
+    invforge.io/reserved-for: pr-11b-observability
+{{- end }}
+{{- end }}

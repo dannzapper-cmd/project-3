@@ -1,0 +1,16 @@
+{{- /* Non-secret configuration for the AI Operations API. */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "invforge.fullname" . }}-config
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ai-api
+data:
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+  {{- range $k, $v := .Values.aiApi.env }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

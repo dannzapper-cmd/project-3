@@ -1,0 +1,62 @@
+{{- /*
+Scheduled retraining CronJob — SUSPENDED by default.
+
+Same image/fail-safe rules as the one-shot Job (see retraining-job.yaml). It is
+suspended by default (retraining.cronjob.suspend=true) so nothing runs unattended
+in a demo cluster. To trigger a run manually without waiting for the schedule:
+
+  kubectl create job --from=cronjob/<name> retrain-manual -n invforge-ai
+
+See docs/runbooks/retraining-manual-trigger.md.
+*/}}
+{{- if .Values.retraining.cronjob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "invforge.fullname" . }}-retrain
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: retraining
+spec:
+  schedule: {{ .Values.retraining.cronjob.schedule | quote }}
+  suspend: {{ .Values.retraining.cronjob.suspend }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.retraining.backoffLimit }}
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            {{- include "invforge.labels" . | nindent 12 }}
+            app.kubernetes.io/component: retraining
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: {{ .Values.retraining.securityContext.runAsNonRoot }}
+            seccompProfile:
+              {{- toYaml .Values.retraining.securityContext.seccompProfile | nindent 14 }}
+          containers:
+            - name: retrain
+              image: "{{ .Values.retraining.image.repository }}:{{ .Values.retraining.image.tag }}"
+              imagePullPolicy: {{ .Values.retraining.image.pullPolicy }}
+              command: ["python", "-m", "mlops.retraining.runner", "retrain", "--mode", {{ .Values.retraining.mode | quote }}]
+              env:
+                - name: MLFLOW_ALLOW_FILE_STORE
+                  value: "true"
+                - name: BENTOML_DO_NOT_TRACK
+                  value: "true"
+                - name: ZENML_ANALYTICS_OPT_IN
+                  value: "false"
+                - name: RETRAINING_MODE
+                  value: {{ .Values.retraining.mode | quote }}
+              resources:
+                {{- toYaml .Values.retraining.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: {{ .Values.retraining.securityContext.allowPrivilegeEscalation }}
+                capabilities:
+                  {{- toYaml .Values.retraining.securityContext.capabilities | nindent 18 }}
+{{- end }}

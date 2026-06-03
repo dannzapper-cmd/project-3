@@ -1,0 +1,27 @@
+{{- /*
+DISABLED with the BentoML deployment (see bentoml-deployment.yaml). This single
+Service is the blue-green switch: its selector targets ONE color at a time. Flip
+the active color with `make model-switch-green` / `make model-switch-blue`
+(kubectl patch of the selector) once a real BentoML image is deployed.
+*/}}
+{{- if .Values.bentoml.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "invforge.fullname" . }}-bentoml
+  namespace: {{ include "invforge.namespace" . }}
+  labels:
+    {{- include "invforge.labels" . | nindent 4 }}
+    {{- include "invforge.bentoml.selectorLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.bentoml.service.type }}
+  selector:
+    {{- include "invforge.bentoml.selectorLabels" . | nindent 4 }}
+    # Active model color — this is what blue-green switching changes.
+    invforge.io/model-color: {{ .Values.bentoml.activeColor }}
+  ports:
+    - name: http
+      port: {{ .Values.bentoml.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

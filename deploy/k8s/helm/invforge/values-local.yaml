@@ -1,0 +1,30 @@
+# InvForge — local kind overrides (PR-11A).
+#
+# Use with:
+#   helm upgrade --install invforge deploy/k8s/helm/invforge \
+#     -n invforge-ai --create-namespace \
+#     -f deploy/k8s/helm/invforge/values.yaml \
+#     -f deploy/k8s/helm/invforge/values-local.yaml
+#
+# These overrides are NON-NEGOTIABLE for local kind:
+#   * imagePullPolicy: IfNotPresent  -> use images loaded via `kind load
+#     docker-image`. With Always, kind would try to pull from a registry and
+#     fail (ErrImagePull) because the images are local-only.
+#   * service.type: ClusterIP        -> access via `kubectl port-forward`, never
+#     LoadBalancer/NodePort on a single-node local cluster.
+
+aiApi:
+  image:
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+
+bentoml:
+  image:
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+
+retraining:
+  image:
+    pullPolicy: IfNotPresent

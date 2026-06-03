@@ -1,0 +1,26 @@
+# InvForge BentoML build spec (PR-11A groundwork; build deferred).
+#
+# This describes how to package the champion forecasting model into a Bento.
+# It is NOT built or containerized in PR-11A — see
+# docs/adr/002-pr11a-kubernetes-scope.md ("BentoML"). Build it after PR-11A with:
+#
+#   make mlops-loop            # packages the champion model into the local store
+#   make bento-build           # bentoml build -f deploy/k8s/bentofile.yaml .
+#   make bento-containerize    # -> invforge_demand_forecast:local
+#   make k8s-load-bento        # kind load docker-image
+#   helm upgrade ... --set bentoml.enabled=true
+#
+# The service entrypoint already exists at mlops/service.py.
+service: "mlops.service:DemandForecastService"
+labels:
+  owner: invforge
+  scope: pr-11a-groundwork
+include:
+  - "mlops/service.py"
+python:
+  # The Bento resolves its own deps; pin the serving-relevant ones here.
+  packages:
+    - "bentoml>=1.4.0,<2.0.0"
+    - "lightgbm>=4.0.0"
+    - "scikit-learn>=1.5.0"
+    - "numpy"
