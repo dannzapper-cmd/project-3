@@ -47,6 +47,9 @@ dashboard = [
 observability = [
     "prometheus-client>=0.20.0",
 ]
+security = [
+    "bandit>=1.8.0",
+]
 
 [tool.ruff]
 line-length = 88
@@ -61,7 +64,7 @@ strict = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["api/tests", "ml/tests"]
+testpaths = ["api/tests", "ml/tests", "tests/security"]
 
 [tool.uv]
 package = false

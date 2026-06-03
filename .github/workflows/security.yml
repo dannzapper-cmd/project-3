@@ -1,0 +1,90 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --group dev --group security --group ml
+
+      - name: Run Bandit
+        run: uv run --group security bandit -r security/ api/ -ll -q
+
+      - name: Run pip-audit
+        run: uvx pip-audit
+
+      - name: Run detect-secrets
+        run: uv run detect-secrets scan --baseline .secrets.baseline
+
+      - name: Generate synthetic data
+        run: |
+          uv run python data/synthetic/generate_inventory_data.py \
+            --output /tmp/synthetic --seed 42
+
+      - name: Run security pipeline
+        run: |
+          uv run --group security python -m security.pipeline \
+            --output /tmp/security-artifacts \
+            --data-dir /tmp/synthetic
+
+      - name: Run security smoke
+        run: |
+          uv run python security/smoke_check.py \
+            --artifacts-dir /tmp/security-artifacts
+
+      - name: Run security tests
+        run: uv run pytest tests/security/ -v
+
+  trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan (CRITICAL — blocks)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          exit-code: "1"
+          severity: CRITICAL
+          format: table
+
+      - name: Trivy filesystem scan (HIGH — report only)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          exit-code: "0"
+          severity: HIGH
+          format: table
+
+  sbom:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          artifact-name: invforge-sbom.cyclonedx.json

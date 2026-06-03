@@ -10,7 +10,7 @@ OUTPUT_DIR := data/synthetic/output
 SEED := 42
 INVFORGE_API_PORT ?= 8001
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke lint test secrets-scan ci
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom lint test secrets-scan ci
 
 help:
 	@echo "InvForge — available targets:"
@@ -34,6 +34,11 @@ help:
 	@echo "  observability-up    Start local Prometheus + Grafana (Docker)"
 	@echo "  observability-down  Stop local Prometheus + Grafana (Docker)"
 	@echo "  observability-smoke Offline observability health/metrics smoke check"
+	@echo "  security-audit    Run PR-08 defensive security pipeline (artifacts)"
+	@echo "  security-smoke    Validate generated security artifacts (offline)"
+	@echo "  security-check    Bandit + pip-audit + detect-secrets"
+	@echo "  trivy-scan        Filesystem scan (CRITICAL blocks, HIGH reports)"
+	@echo "  sbom              Generate CycloneDX SBOM (requires syft)"
 	@echo "  lint            Run Ruff linter"
 	@echo "  test            Run pytest"
 	@echo "  secrets-scan    Scan repository for secrets"
@@ -120,6 +125,26 @@ observability-down:
 # Offline smoke test: no Docker, no server, no browser. Runs in < 10s.
 observability-smoke:
 	$(UV) run --group observability python -m observability.smoke
+
+# PR-08 defensive security: audit log, risk scoring, anomaly detection.
+security-audit: generate-data
+	$(UV) run --group security --group ml python -m security.pipeline --output artifacts/security/
+
+security-smoke:
+	$(UV) run --group security --group ml python security/smoke_check.py --artifacts-dir artifacts/security/
+
+security-check:
+	$(UV) run python security/checks.py
+
+trivy-scan:
+	@command -v trivy >/dev/null 2>&1 || { echo "trivy not installed; see security/README.md"; exit 1; }
+	trivy fs . --exit-code 1 --severity CRITICAL --quiet
+	trivy fs . --exit-code 0 --severity HIGH --quiet
+
+sbom:
+	@command -v syft >/dev/null 2>&1 || { echo "syft not installed; see security/README.md"; exit 1; }
+	@mkdir -p artifacts/security
+	syft . -o cyclonedx-json > artifacts/security/sbom.cyclonedx.json
 
 lint:
 	$(UV) run ruff check .
