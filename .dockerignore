@@ -48,7 +48,6 @@ dist/
 build/
 .venv/
 .python-version
-uv.lock
 
 # Test / coverage / lint caches
 .coverage

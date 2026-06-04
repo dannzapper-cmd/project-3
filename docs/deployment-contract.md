@@ -23,7 +23,9 @@ read-only **demo/cloud** service.
 - **Streamlit dashboard** (local artifact viewer; see §6).
 - **Security-sensitive** operations / audit-write paths.
 - Large/ephemeral local file-store artifacts (`mlruns/`, `artifacts/`).
-- **Kubernetes / Helm / Senior Edition** — deferred to PR-11.
+- **Kubernetes / Helm / Senior Edition** — outside PR-10. PR-11A/11B add local
+  kind profiles for the AI layer, observability, and lineage; cloud Kubernetes
+  remains out of scope.
 
 ## 3. Deployability analysis (DA-1)
 
@@ -141,16 +143,24 @@ artifact stores.
   credentials. WAF templates require a provider account + public entrypoint.
 - No live GCP/AWS/Azure resources are created or maintained by InvForge or CI.
 
-### Deferred to PR-11 Senior Edition
+### Implemented after PR-10 (PR-11A / PR-11B, local-only)
 
-- Kubernetes manifests (kind/k3s) and the local Kubernetes path (runnable
-  without active cloud clusters).
-- Helm chart.
-- Kubernetes CronJob for retraining.
-- LGTM stack; OpenLineage/Marquez.
-- Model signing (Cosign/Sigstore).
-- Blue/green / canary deployment.
+- Local kind + Helm path for the AI Operations Layer (`make k8s-*`).
+- Kubernetes AI API Deployment/Service plus opt-in retraining Job/CronJob
+  templates.
+- Optional observability profile (`make obs-k8s-*`) with Prometheus, Grafana,
+  Loki, Tempo, AlertManager, OTel receivers, and webhook alert testing.
+- Optional lineage profile (`make lineage-*`) with env-gated OpenLineage emission
+  and local Marquez.
+- Model signing groundwork (`workflow_dispatch` only; not a CI/deploy gate).
+- Blue/green BentoML manifests and switch scripts are templated but disabled
+  until a real Bento image is built.
+
+### Still deferred to production hardening / future work
+
 - Redis inference cache.
+- Strict Cosign verify-before-deploy or admission policy.
+- Active cloud Kubernetes (GKE/EKS/AKS), WAF, production RBAC, and formal SLA.
 
 ### Deferred to production hardening (beyond PR-10/PR-11)
 

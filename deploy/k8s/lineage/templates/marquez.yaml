@@ -6,6 +6,39 @@ metadata:
     {{- include "lineage.labels" . | nindent 4 }}
     app.kubernetes.io/component: namespace
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marquez-api-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "lineage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: marquez-api
+data:
+  marquez.yml: |
+    # Explicit config for Kubernetes. The image's bundled marquez.dev.yml
+    # hardcodes db host "postgres"; this chart uses service "marquez-db".
+    server:
+      applicationConnectors:
+        - type: http
+          port: ${MARQUEZ_PORT:-5000}
+          httpCompliance: RFC7230_LEGACY
+      adminConnectors:
+        - type: http
+          port: ${MARQUEZ_ADMIN_PORT:-5001}
+    db:
+      driverClass: org.postgresql.Driver
+      url: jdbc:postgresql://${POSTGRES_HOST:-marquez-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+    migrateOnStartup: true
+    graphql:
+      enabled: true
+    logging:
+      level: INFO
+      appenders:
+        - type: console
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,6 +82,8 @@ spec:
           image: {{ .Values.marquezApi.image }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
+            - name: MARQUEZ_CONFIG
+              value: /etc/marquez/marquez.yml
             - name: MARQUEZ_PORT
               value: {{ .Values.marquezApi.port | quote }}
             - name: MARQUEZ_ADMIN_PORT
@@ -73,10 +108,19 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/marquez/marquez.yml
+              subPath: marquez.yml
+              readOnly: true
           resources:
             {{- toYaml .Values.marquezApi.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
+      volumes:
+        - name: config
+          configMap:
+            name: marquez-api-config
 ---
 apiVersion: v1
 kind: Service

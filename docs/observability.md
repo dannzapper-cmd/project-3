@@ -48,8 +48,9 @@ Local URL: `http://localhost:8001` (override the port with `INVFORGE_API_PORT`).
 curl http://localhost:8001/health
 ```
 
-Expected response shape (HTTP 200 when `ok`/`degraded`, HTTP 503 when
-`unavailable`):
+Expected response shape (local/CI: HTTP 200 when `ok`/`degraded`, HTTP 503 when
+`unavailable`; demo/cloud: HTTP 200 even when the payload status is
+`unavailable`, so provider probes stay green without local artifacts):
 
 ```json
 {
@@ -70,6 +71,8 @@ Expected response shape (HTTP 200 when `ok`/`degraded`, HTTP 503 when
 
 - `status` is `unavailable` when no artifacts are present, `degraded` when some
   are present, and `ok` when all are present.
+- In demo/cloud mode, inspect the JSON body; a 200 status alone does **not** prove
+  model/MLOps artifacts are present.
 - `drift_detected` is `true`/`false`/`null` (`null` = unknown).
 - `bentoml_packaged` is `true`/`false`/`null`.
 - `champion_challenger_decision` is one of `promote_challenger`,

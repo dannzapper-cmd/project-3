@@ -120,5 +120,6 @@ Key Vault secrets (the script prints the commands). See
 
 - Not deployed or smoke-tested in CI; no live Azure resources are maintained.
 - WAF requires Front Door / Application Gateway (template only).
-- AKS / Kubernetes is **deferred to PR-11 Senior Edition**.
+- Local kind Kubernetes exists under `deploy/k8s`; AKS/cloud Kubernetes remains
+  out of scope for this profile.
 - Full Bicep/Terraform IaC is **deferred to production hardening**.

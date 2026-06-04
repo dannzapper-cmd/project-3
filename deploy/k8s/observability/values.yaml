@@ -40,7 +40,7 @@ grafana:
   # Local/dev credentials ONLY (mirrors the PR-07 compose stack). Anonymous
   # viewer is enabled for a frictionless local demo. NOT for production.
   adminUser: admin
-  adminPassword: admin
+  adminPassword: admin  # pragma: allowlist secret - local/dev Grafana only
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits: { cpu: 200m, memory: 256Mi }
