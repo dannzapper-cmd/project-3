@@ -222,6 +222,11 @@ Ver sección 5. La clave: en 90 segundos el espectador ve **sistema empresarial 
 
 ## 20. Narrativa de entrevista
 
-> "Tomé InvenTree, un sistema de inventario open-source real, y construí encima una capa de AI Operations externa que no modifica el core. Añade demand forecasting con LightGBM/StatsForecast, manejo de demanda intermitente con Croston/SBA, predicción de stockouts y decision intelligence con safety stock, EOQ y reorder point sobre datos sintéticos. Tiene un loop MLOps local con Feast, MLflow, Evidently, BentoML packaging, ZenML retraining y rollback seguro. El AI API es deployable como contenedor read-only con perfiles Cloud Run/AWS/Azure activation-ready; Kubernetes corre localmente en kind para la AI layer, con observabilidad y lineage opcionales. CI/CD cubre lint, tests, seguridad, deploy-template validation, Trivy/SBOM en workflows y model-signing groundwork manual. Las piezas futuras (foundation models, red-team data poisoning, Redis, auth/gates estrictos) están documentadas como scope diferido."
+La narrativa final de entrevista / portfolio es **propiedad de PR-13**. PR-12 solo deja guardrails factuales para que esa narrativa no sobreprometa:
 
-Diferenciador final: la mayoría sabe *qué herramientas existen*; muy pocos las conectan en un sistema coherente con criterio de producción y un número de impacto de negocio. Eso es lo que InvForge demuestra.
+- Datos y métricas de impacto: sintéticos, seed 42, no claims de ahorro real.
+- Cloud: perfiles activation-ready; no recursos live por defecto.
+- Kubernetes: local kind para la AI layer; observabilidad y lineage son perfiles opcionales.
+- Tracing: Tempo/OTel backends idle hasta instrumentar la API.
+- BentoML/blue-green: templated/disabled hasta construir una imagen real.
+- Futuro/diferido: foundation models, red-team data poisoning, Redis, auth/gates estrictos y producción cloud.

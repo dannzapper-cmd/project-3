@@ -11,6 +11,12 @@ PR-01 through PR-11B were audited across repository reproducibility, Python tool
 
 Status vocabulary used literally: **PASS**, **FAIL**, **PARTIAL**, **NOT RUN**, **MANUAL REQUIRED**.
 
+## PR-12 senior-review follow-up (2026-06-04)
+
+- Retraining image reproducibility was fixed after review: `deploy/k8s/Dockerfile.retraining` now copies `pyproject.toml uv.lock ./` and runs `uv sync --frozen --no-dev --no-install-project --group ml --group retraining`. Runtime command/env behavior was not changed.
+- GitHub Actions real CI is still required before merge: verify the PR checks in the GitHub UI after pushing this follow-up commit.
+- Manual Mac validation is still required for Docker/kind/k8s/observability/lineage because Cursor Cloud does not provide Docker/kind/kubectl.
+
 ## Tagged classifications
 
 ### verified locally
@@ -96,7 +102,7 @@ Status vocabulary used literally: **PASS**, **FAIL**, **PARTIAL**, **NOT RUN**, 
 | security checks | `make security-check` | PASS | Bandit PASS, pip-audit PASS (`No known vulnerabilities found`), detect-secrets PASS. | Local Trivy/Syft NOT RUN. |
 | secret pattern search | regex scan for `API_KEY=`, `SECRET=`, `TOKEN=`, `PASSWORD=`, private keys, kubeconfig, AWS/GCP credential hints | PASS | No suspicious matches outside ignored lockfile scope. | Continue baseline scans in CI. |
 | Docker compose config | `make docker-config` | NOT RUN | Target printed `WARNING: docker not available; skipping compose config validation` and exited 0; no real compose parse occurred. | Run on Docker host. |
-| Docker build/smoke | `make docker-build-ai`; `make docker-smoke` | MANUAL REQUIRED | Docker unavailable in Cursor Cloud. | Run on Danny Mac. |
+| Docker build/smoke | `make docker-build-ai`; `make docker-smoke`; `make k8s-retrain-image` | MANUAL REQUIRED | Docker unavailable in Cursor Cloud. Static Dockerfile review confirms root and retraining images now use `uv.lock` + `uv sync --frozen`. | Run on Danny Mac. |
 | kind/k8s live | `make k8s-preflight/up/deploy/status/smoke/down`; `kubectl get pods -A` | MANUAL REQUIRED | Docker/kind/kubectl unavailable. Static Helm validation passed. | Run sequentially on Danny Mac. |
 | PR-11B live obs | `make obs-k8s-up/status/port-forward/smoke/alert-test/down` | MANUAL REQUIRED | Requires kind cluster and ~2 GB observability profile. Static chart validation passed. | Run after baseline k8s teardown if RAM-constrained. |
 | lineage live | `make lineage-up/port-forward/smoke/down` | MANUAL REQUIRED | Requires kind cluster + Marquez port-forward. Code no-op gating verified; static chart validation passed. | Run last. |
@@ -109,8 +115,8 @@ Status vocabulary used literally: **PASS**, **FAIL**, **PARTIAL**, **NOT RUN**, 
 
 - Before: `uv.lock` was not tracked and `.gitignore`/`.dockerignore` excluded it, despite uv being the project package manager.
 - Root cause: repository treated the uv lockfile like local metadata, so Docker and local installs resolved dependencies from `pyproject.toml` alone.
-- Fix: generated `uv.lock`, stopped ignoring it, allowed Docker build context to include it, and changed Docker build to `uv sync --frozen --no-dev --no-install-project --group observability`.
-- After: `uv sync --frozen --group dev --group ml --group retraining` passed; Dockerfile now consumes the lockfile.
+- Fix: generated `uv.lock`, stopped ignoring it, allowed Docker build context to include it, changed the root Docker build to `uv sync --frozen --no-dev --no-install-project --group observability`, and changed the retraining Docker build to `uv sync --frozen --no-dev --no-install-project --group ml --group retraining`.
+- After: `uv sync --frozen --group dev --group ml --group retraining` passed; both Dockerfiles now consume the lockfile.
 
 ### F2 - Observability metric path-label guard false positive (fixed)
 
@@ -224,7 +230,7 @@ Manual evidence still required before final PR-13 packaging claims:
 2. Live kind AI layer smoke (`/health` body and `/metrics`, not just status 200).
 3. Live observability smoke and alert loop.
 4. Live lineage smoke with Marquez.
-5. GitHub Actions status after this branch is pushed (CI, Deploy Validation, Security).
+5. GitHub Actions real CI status after this branch is pushed (CI, Deploy Validation, Security) is required before merge.
 
 ## Gap list (acceptable, documented)
 
@@ -246,6 +252,7 @@ Manual evidence still required before final PR-13 packaging claims:
 - `.dockerignore` - allow `uv.lock` into Docker build context.
 - `uv.lock` - committed reproducibility lockfile.
 - `Dockerfile` - copy `uv.lock`; use `uv sync --frozen`.
+- `deploy/k8s/Dockerfile.retraining` - copy `uv.lock`; use frozen uv sync for `ml` + `retraining` groups.
 - `observability/metrics.py` - fix endpoint-label path guard.
 - `README.md` - minimal stale-status/scope corrections.
 - `PROJECT_3_INVFORGE_MASTER_CONTEXT.md` - minimal corrections to current status and overclaims.
