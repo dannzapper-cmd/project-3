@@ -105,11 +105,20 @@ Status vocabulary used literally: **PASS**, **FAIL**, **PARTIAL**, **NOT RUN**, 
 | Docker build/smoke | `make docker-build-ai`; `make docker-smoke`; `make k8s-retrain-image` | MANUAL REQUIRED | Docker unavailable in Cursor Cloud. Static Dockerfile review confirms root and retraining images now use `uv.lock` + `uv sync --frozen`. | Run on Danny Mac. |
 | kind/k8s live | `make k8s-preflight/up/deploy/status/smoke/down`; `kubectl get pods -A` | MANUAL REQUIRED | Docker/kind/kubectl unavailable. Static Helm validation passed. | Run sequentially on Danny Mac. |
 | PR-11B live obs | `make obs-k8s-up/status/port-forward/smoke/alert-test/down` | MANUAL REQUIRED | Requires kind cluster and ~2 GB observability profile. Static chart validation passed. | Run after baseline k8s teardown if RAM-constrained. |
-| lineage live | `make lineage-up/port-forward/smoke/down` | MANUAL REQUIRED | Requires kind cluster + Marquez port-forward. Code no-op gating verified; static chart validation passed. | Run last. |
+| lineage live | `make lineage-up/port-forward/smoke/down` | MANUAL REQUIRED | Danny Mac found `marquez-api` CrashLoopBackOff before this follow-up. Root cause fixed in chart config; live rerun still required because Cursor lacks Docker/kind/kubectl. | Run last; wait for all lineage deployments available before smoke. |
 | cloud deploy | GCP/AWS/Azure commands | NOT RUN | No cloud CLIs or resource-mutating commands were run. READMEs/templates inspected; deploy validator passed. | Explicit human cloud decision required. |
 | trivy/sbom local | `make trivy-scan`; `make sbom` | NOT RUN | `trivy`/`syft` binaries unavailable locally. Workflows are configured in `security.yml`. | Check GitHub Actions after push or install local binaries. |
 
 ## Findings and minimal hardening applied
+
+### F0 - PR-12 follow-up: Marquez API CrashLoopBackOff in lineage profile (fixed statically; live rerun manual)
+
+- Before (Danny Mac manual validation): `make lineage-up` installed the chart and `marquez-db` / `marquez-web` reached `1/1 Running`, but `marquez-api` entered `0/1 CrashLoopBackOff`; `make lineage-smoke` failed because `http://localhost:5000` was unreachable. Logs showed `WARNING 'MARQUEZ_CONFIG' not set, using development configuration.`
+- Root cause: Marquez 0.49.0's bundled `marquez.dev.yml` hardcodes the database host as `postgres`. The InvForge chart's Postgres Service is `marquez-db`, and the chart's `POSTGRES_HOST=marquez-db` env var was ignored by the bundled development config. The API therefore attempted DB startup/migration against the wrong host and exited.
+- Fix: `deploy/k8s/lineage/templates/marquez.yaml` now renders a `marquez-api-config` ConfigMap with an explicit Kubernetes `marquez.yml`, sets `MARQUEZ_CONFIG=/etc/marquez/marquez.yml`, and mounts the config into the API pod. The config uses `${POSTGRES_HOST:-marquez-db}` plus the existing `POSTGRES_*` env vars. No Marquez version change, new database architecture, or feature expansion.
+- Static rerun: `make lineage-lint` PASS; `helm template invforge-lineage deploy/k8s/lineage -n invforge-lineage` PASS; `python3 scripts/validate_deploy_profiles.py` PASS (`python` binary is unavailable in Cursor, so `python3` was used for the same script); `uv run ruff check .` PASS; `uv run pytest` PASS (`151 passed, 3 skipped`).
+- Live status: MANUAL REQUIRED in Cursor because Docker/kind/kubectl are unavailable. Danny should rerun `make lineage-up`, `kubectl wait --for=condition=available deployment --all -n invforge-lineage --timeout=300s`, `make lineage-status`, `make lineage-port-forward`, `make lineage-smoke`, then `make lineage-down`.
+
 
 ### F1 - Reproducibility gap: missing tracked `uv.lock` (fixed)
 
@@ -266,3 +275,5 @@ Manual evidence still required before final PR-13 packaging claims:
 - `deploy/gcp/README.md`, `deploy/aws/README.md`, `deploy/azure/README.md` - clarify local kind vs managed cloud Kubernetes.
 - `docs/model-cards/demand_forecast_baseline.md` - update PR-10/11 status and future benchmark notes.
 - `docs/audits/pr12-full-qa-audit.md` - this audit report.
+- `deploy/k8s/lineage/templates/marquez.yaml` - explicit Marquez Kubernetes config to avoid dev-config DB host mismatch.
+- `docs/runbooks/lineage-inspection.md` - CrashLoopBackOff troubleshooting note.

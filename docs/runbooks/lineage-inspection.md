@@ -55,6 +55,27 @@ make retrain-smoke
 curl -s http://localhost:5000/api/v1/namespaces/invforge/jobs | head
 ```
 
+
+## Troubleshooting: Marquez API CrashLoopBackOff
+
+If `marquez-db` and `marquez-web` are Running but `marquez-api` enters
+`CrashLoopBackOff` and logs only:
+
+```text
+WARNING 'MARQUEZ_CONFIG' not set, using development configuration.
+```
+
+then the API is likely using the image's bundled development config, which
+hardcodes the database host as `postgres`. The InvForge chart must render and
+mount `marquez-api-config` and set `MARQUEZ_CONFIG=/etc/marquez/marquez.yml` so
+the API connects to the Kubernetes Service `marquez-db`. Verify with:
+
+```bash
+kubectl get configmap marquez-api-config -n invforge-lineage
+kubectl get deploy marquez-api -n invforge-lineage -o yaml | grep -A3 MARQUEZ_CONFIG
+kubectl logs -n invforge-lineage deployment/marquez-api --tail=120
+```
+
 ## Tear down
 
 ```bash
