@@ -23,12 +23,12 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-# Only the dependency manifest is needed to build the venv (package = false).
-COPY pyproject.toml ./
+# Dependency manifest + lockfile keep the runtime image reproducible.
+COPY pyproject.toml uv.lock ./
 
 # Core deps + observability group only. Exclude dev and all heavy ML/MLOps/
 # retraining/dashboard groups so the runtime image stays small.
-RUN uv sync --no-dev --no-install-project --group observability
+RUN uv sync --frozen --no-dev --no-install-project --group observability
 
 # ---- Runtime: minimal slim image -----------------------------------------
 FROM python:3.12-slim-bookworm AS runtime

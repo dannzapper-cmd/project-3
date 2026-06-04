@@ -76,7 +76,7 @@ smoke` (the same code path as `make retrain-smoke`). It fails safe:
 `backoffLimit: 0` (no retry loop) and the pipeline's own quality gate never
 promotes a model on failure. **ZenML uses a local SQLite stack
 (`.zenml_local/`) that is ephemeral per Job run** — persistent pipeline state
-needs a PVC, deferred to PR-11B / production.
+needs a PVC, deferred to production hardening.
 
 ### NetworkPolicy: kindnet, structural-only (Option B)
 
@@ -93,7 +93,7 @@ respect the RAM budget; the trade-off is documented honestly rather than implied
 
 The AI Operations API (`api/`) has **no cache integration** (no Redis in
 `pyproject.toml`, Compose, or code). Adding a Redis Deployment would be
-decoration. **Redis inference caching is deferred to PR-11B / production
+decoration. **Redis inference caching is deferred to future production
 hardening.** This is a deliberate, honest omission.
 
 ### Cosign is groundwork, not a gate
@@ -102,7 +102,7 @@ hardening.** This is a deliberate, honest omission.
 not wired into `ci.yml`, and cannot block PR checks. It documents the keyless
 (Sigstore) signing path and requires a pushed GHCR image + OIDC permissions to
 actually run. Promotion to a real admission gate (verify-before-deploy) is
-deferred to PR-11B / production.
+deferred to future production hardening.
 
 ### Why PR-11B is deferred
 

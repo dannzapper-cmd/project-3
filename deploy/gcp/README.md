@@ -145,4 +145,5 @@ load balancer / Cloud Armor resources you created. See
 - Not deployed or smoke-tested in CI; no live GCP resources are maintained.
 - Scale-to-zero means first-request cold starts.
 - Cloud Armor requires extra load-balancer architecture (template only).
-- Kubernetes/GKE is **deferred to PR-11 Senior Edition**.
+- Local kind Kubernetes exists under `deploy/k8s`; managed GKE/cloud Kubernetes
+  remains out of scope for this profile.

@@ -40,7 +40,7 @@ See the root `Makefile` or run `make help`:
 make generate-data   # Synthetic inventory CSVs
 make lint            # Ruff
 make secrets-scan    # detect-secrets
-make ci              # Lint + generator + compose config
+make ci              # Lint + tests + data generation/validation + compose config
 make docker-up       # Start InvenTree base stack
 ```
 

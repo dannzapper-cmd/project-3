@@ -267,6 +267,9 @@ def assert_no_path_label_values() -> list[tuple[str, str, str]]:
         for sample in metric.samples:
             for label_name, label_value in sample.labels.items():
                 value: Any = label_value
+                if label_name == "endpoint" and str(value) in KNOWN_ENDPOINTS:
+                    # Endpoint labels are normalized API templates, not file paths.
+                    continue
                 if "/" in str(value) or "\\" in str(value):
                     offenders.append((sample.name, label_name, str(value)))
     return offenders

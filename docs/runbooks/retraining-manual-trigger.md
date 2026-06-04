@@ -60,5 +60,5 @@ To actually let it run on schedule, additionally set
 
 ZenML uses a local SQLite stack at `.zenml_local/`. Inside a Job this path is
 **ephemeral per run** and does not persist between runs. For persistent pipeline
-history a PersistentVolumeClaim is required — **deferred to PR-11B / production**.
+history a PersistentVolumeClaim is required — **deferred to production hardening**.
 Smoke/full runs are self-contained, so this does not affect a single run.

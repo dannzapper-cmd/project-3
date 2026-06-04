@@ -47,9 +47,9 @@ Static validation (no cluster): `make helm-lint`, `make helm-template`.
 | NetworkPolicy manifests | **Structural** (kindnet does not enforce; Calico optional) |
 | Retraining Job + CronJob (separate image, verified command) | **Implemented (opt-in)** |
 | BentoML model server + blue-green | **Templated but DISABLED** (no image yet) |
-| Redis inference cache | **Deferred to PR-11B** (no cache in API) |
+| Redis inference cache | **Deferred to production hardening** (no cache in API) |
 | Cosign signing | **Groundwork** (workflow_dispatch, non-blocking) |
-| LGTM / OTel Collector / AlertManager / OpenLineage / Marquez | **Deferred to PR-11B** |
+| Observability stack / OTel receivers / AlertManager / OpenLineage / Marquez | **Implemented as optional PR-11B profiles** (`obs-k8s-*`, `lineage-*`; traces idle until API instrumentation) |
 
 See `docs/adr/002-pr11a-kubernetes-scope.md` and the runbooks under
 `docs/runbooks/k8s-*.md`.

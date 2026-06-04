@@ -12,7 +12,7 @@ postgres:
   user: marquez
   # LOCAL/DEV ONLY, ephemeral throwaway DB (mirrors the grafana admin/admin
   # pattern). NOT a secret and never reused. Do not use in production.
-  password: marquez
+  password: marquez  # pragma: allowlist secret - local/dev ephemeral DB only
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 250m, memory: 512Mi }

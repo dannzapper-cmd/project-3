@@ -142,5 +142,6 @@ and any secrets (the script prints the commands). See
 - Activating requires an AWS account, IAM roles, a VPC/subnets, and an ALB —
   beyond PR-10's no-credentials, no-live-resources scope.
 - Not deployed or smoke-tested in CI.
-- EKS/Kubernetes on AWS is **deferred to PR-11 Senior Edition**.
+- Local kind Kubernetes exists under `deploy/k8s`; EKS/cloud Kubernetes remains
+  out of scope for this profile.
 - Full Terraform/CDK IaC is **deferred to production hardening**.

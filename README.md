@@ -1,16 +1,17 @@
 # InvForge — AI Operations Control Tower
 
-[![CI](https://github.com/OWNER/invforge/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/invforge/actions/workflows/ci.yml)
+[![CI](https://github.com/dannzapper-cmd/project-3/actions/workflows/ci.yml/badge.svg)](https://github.com/dannzapper-cmd/project-3/actions/workflows/ci.yml)
 
 InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It adds demand forecasting, stockout prediction, MLOps, observability, and decision intelligence **without modifying the InvenTree core**.
 
-> **Status:** PR-02 — data pipeline foundation (FastAPI sidecar, read-only ingestion, Pandera validation, DVC, Feast skeleton).
+> **Status:** PR-11B merged (local Kubernetes AI layer plus optional observability
+> and lineage profiles). PR-12 is the current full QA/audit hardening pass.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph invforge_sidecar ["InvForge Sidecar (PR-02+)"]
+    subgraph invforge_sidecar ["InvForge Sidecar (PR-02 → PR-11B)"]
         API["FastAPI AI Ops API"]
         ML["ML Training / Serving"]
         MLOps["MLflow · Feast · Evidently"]
@@ -35,7 +36,7 @@ flowchart TB
     ML -. "Features / Predictions" .-> API
 ```
 
-**Principle:** InvenTree runs unchanged in Docker. All AI/MLOps components are external services that consume InvenTree's REST API (starting in PR-02).
+**Principle:** InvenTree runs unchanged in Docker. All AI/MLOps components are external services that consume InvenTree's REST API. Kubernetes work deploys only the AI Operations Layer; observability and lineage are optional local profiles.
 
 ## Repository structure
 
@@ -216,10 +217,10 @@ make UV="uv" observability-down
 make UV="uv" observability-smoke
 ```
 
-This is **local/dev observability only** — not production monitoring. See
-`docs/observability.md` for metric definitions, the health contract, Grafana
-provisioning, and what is intentionally deferred (LGTM stack, alerting, cloud,
-Kubernetes).
+This PR-07 Docker Compose stack is **local/dev observability only** — not
+production monitoring. PR-11B adds separate optional local-kind observability and
+lineage profiles (`make obs-k8s-*`, `make lineage-*`); traces remain idle until
+future API instrumentation. See `docs/observability.md` and the PR-11B runbooks.
 
 ## Makefile commands
 
@@ -248,7 +249,10 @@ Kubernetes).
 | `make lint` | Run Ruff linter |
 | `make test` | Run pytest |
 | `make secrets-scan` | Run detect-secrets scan |
-| `make ci` | Run all local CI checks |
+| `make ci` | Run core local CI checks (`lint`, `test`, data generation/validation, Docker Compose config when Docker is available) |
+
+Run `make help` for the full target list, including PR-08 security,
+PR-09 retraining, PR-11A Kubernetes, PR-11B observability, and lineage commands.
 
 ## PR roadmap (summary)
 
@@ -256,7 +260,7 @@ Kubernetes).
 |----|-------|
 | **PR-01** | Base setup — Docker, repo structure, synthetic data, CI skeleton |
 | **PR-02** | Data pipeline — ingestion, Feast, validation, DVC |
-| PR-03 | ML baseline — LightGBM, Prophet, Croston/SBA, MLflow |
+| PR-03 | ML baseline — LightGBM, StatsForecast, Croston/SBA, MLflow |
 | PR-04 | Decision intelligence — safety stock, EOQ, ROP, quantile loss |
 | PR-05 | MLOps loop — Evidently, model registry, BentoML |
 | **PR-06** | AI Operations Dashboard — Streamlit local control tower |
@@ -270,15 +274,19 @@ Kubernetes).
 
 See `PROJECT_3_INVFORGE_MASTER_CONTEXT.md` for full project context.
 
-## What's NOT in PR-02
+## Current limitations / audit notes
 
-- No InvenTree core modifications, forks, vendoring, or patches
-- No MLflow, Evidently, or ML models
-- No dashboard, Grafana, Kubernetes, or cloud deploy
-- No seeding of synthetic data into InvenTree
-- No real API tokens or passwords committed
-
-See `docs/runbooks/pr-02-data-pipeline.md` for PR-02 setup and smoke-test details.
+- No InvenTree core modifications, forks, vendoring, or patches.
+- Cloud profiles are activation-ready templates; no live cloud resources are
+  created by default.
+- BentoML and blue-green Kubernetes manifests are templated but disabled until a
+  real Bento image is built.
+- OpenLineage emission is env-gated (`OPENLINEAGE_URL`); Marquez is optional and
+  local-only.
+- Tempo/OTel backends are deployed in the optional observability profile but idle
+  until future API tracing instrumentation.
+- No real API tokens, passwords, kubeconfigs, or cloud credentials should be
+  committed.
 
 ## Contributing
 
