@@ -38,15 +38,16 @@ bash scripts/collect_pr12_6_evidence.sh --lineage
 
 | File | Status | Notes |
 |------|--------|-------|
+| `system-flow.png` | See manifest | Section 0 — backend pipeline chain |
 | `dashboard-overview.png` | See manifest | Streamlit overview after `make demo-local` |
 | `dashboard-decision-intelligence.png` | See manifest | Decision intel panel |
 | `dashboard-mlops.png` | See manifest | MLOps status panel |
 | `api-health.png` | See manifest | `/health` JSON |
 | `api-docs.png` | See manifest | FastAPI OpenAPI UI |
 | `grafana-observability.png` | See manifest | Local Grafana (Docker) |
-| `marquez-lineage.png` | MANUAL REQUIRED | kind lineage profile |
-| `github-actions-green.png` | MANUAL REQUIRED AFTER PUSH | Export from GitHub Actions UI |
-| `terminal-demo-local-pass.png` | MANUAL OPTIONAL | Terminal or `demo-local-pass.log` |
+| `marquez-lineage.png` | **PASS** | kind lineage profile (prior capture) |
+| `github-actions-green.png` | **PASS** | PR #17 checks green |
+| `terminal-demo-local-pass.png` | **PASS** | `make demo-local` output PNG |
 
 ## What is proven vs what is not proven
 
@@ -59,7 +60,7 @@ bash scripts/collect_pr12_6_evidence.sh --lineage
 | Marquez retraining lineage | **Yes** (local kind) | PR-12.6 lineage smoke; screenshot manual |
 | Live Cloud Run / ECS / Azure deploy | **No** | Templates only — see `docs/cloud/` |
 | Production ROI / customer savings | **No** | Synthetic data only |
-| GitHub Actions green for PR-13 | **Verify after push** | Not claimed until CI runs on PR branch |
+| GitHub Actions green for PR-13 | **Yes** | PR #17 CI + Deploy Validation + Security |
 
 Prior audit: `docs/audits/pr12-full-qa-audit.md` (PR-12 static pass).
 

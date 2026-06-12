@@ -16,15 +16,16 @@ See [`SCREENSHOT_MANIFEST.md`](assets/screenshots/SCREENSHOT_MANIFEST.md) for th
 
 | File | Service URL | What it proves | What it does NOT prove |
 |------|-------------|----------------|------------------------|
-| `dashboard-overview.png` | http://localhost:8501 | Streamlit dashboard loads; artifact status cards green after `make demo-local` | Production monitoring; real inventory data |
+| `system-flow.png` | http://localhost:8501 | **Backend pipeline chain** — dashboard section 0 shows data→ML→MLOps artifact paths | That observability/lineage ran in demo-local |
+| `dashboard-overview.png` | http://localhost:8501 | Artifact status cards green after `make demo-local` | Production monitoring; real inventory data |
 | `dashboard-decision-intelligence.png` | http://localhost:8501 | Decision intel section: reorder recs, stockout risk, simulated cost context | Real dollar savings; live ERP integration |
 | `dashboard-mlops.png` | http://localhost:8501 | MLOps section: drift, registry, BentoML status | Managed MLflow/ZenML in cloud |
 | `api-health.png` | http://localhost:8001/health | API health payload with artifact summaries | Cloud deployment; authenticated access |
 | `api-docs.png` | http://localhost:8001/docs | FastAPI OpenAPI UI for deployable read-only surface | Mutation endpoints enabled |
 | `grafana-observability.png` | http://localhost:3000 | Local Grafana after `make observability-up` | Production SLOs; managed Grafana |
 | `marquez-lineage.png` | Marquez UI (kind port-forward) | OpenLineage lineage for retraining job | Production data catalog |
-| `github-actions-green.png` | GitHub Actions UI | CI/deploy/security checks green | PR-13 checks until pushed and verified |
-| `terminal-demo-local-pass.png` | Terminal | `make demo-local` completes successfully | Full k8s/obs/lineage stack |
+| `github-actions-green.png` | GitHub PR checks UI | CI + Deploy Validation + Security green on PR #17 | Future PRs until re-verified |
+| `terminal-demo-local-pass.png` | `make demo-local` output | Full offline pipeline completes; dashboard smoke passes | Full k8s/obs/lineage stack |
 
 ## Commands used per screenshot
 
@@ -35,7 +36,7 @@ make demo-local
 # Script starts in background:
 uv run --group dashboard streamlit run dashboard/app.py --server.headless true --server.port 8501
 uv run --group observability uvicorn api.main:app --host 127.0.0.1 --port 8001
-# Playwright captures pages at the URLs above
+# Playwright captures: system-flow, overview, decision intel, MLOps, API health/docs
 ```
 
 ### Grafana (automated if Docker available)
@@ -56,12 +57,19 @@ make lineage-port-forward # note Marquez UI port from script output
 make lineage-down
 ```
 
-### GitHub Actions (manual export)
+### GitHub Actions (automated or manual)
 
-1. Push PR branch
-2. Open https://github.com/dannzapper-cmd/project-3/actions
-3. Screenshot green CI + Deploy Validation + Security workflows
-4. Save as `docs/assets/screenshots/github-actions-green.png`
+Automated (public PR checks page):
+
+```bash
+# Included in scripts/capture_pr13_screenshots.py — PR #17 checks URL
+```
+
+Manual fallback:
+
+1. Open https://github.com/dannzapper-cmd/project-3/pull/17/checks
+2. Screenshot green CI + Deploy Validation + Security
+3. Save as `docs/assets/screenshots/github-actions-green.png`
 
 ### Terminal demo-local (manual or log)
 

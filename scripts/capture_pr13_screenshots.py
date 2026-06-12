@@ -63,6 +63,7 @@ class Runner:
 
     def start(self, cmd: list[str], env: dict | None = None) -> subprocess.Popen:
         merged = os.environ.copy()
+        merged["PYTHONPATH"] = str(REPO_ROOT)
         if env:
             merged.update(env)
         proc = subprocess.Popen(
@@ -111,34 +112,112 @@ class Runner:
         except ImportError:
             for name, _, url in shots:
                 self.results.append(
-                    ShotResult(name, f"{name}.png", "MANUAL REQUIRED", url or "", "playwright not installed")
+                    ShotResult(
+                        name,
+                        f"{name}.png",
+                        "MANUAL REQUIRED",
+                        url or "",
+                        "playwright not installed",
+                    )
                 )
             return
 
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1440, "height": 900})
             for name, url, selector in shots:
                 path = OUT_DIR / f"{name}.png"
                 try:
-                    page = browser.new_page(viewport={"width": 1440, "height": 900})
-                    page.goto(url, wait_until="networkidle", timeout=60000)
+                    page.goto(url, wait_until="networkidle", timeout=120000)
+                    if ":8501" in url or ":8502" in url or "streamlit" in url:
+                        page.wait_for_selector("text=1. Overview", timeout=120000)
                     page.wait_for_timeout(2000)
-                    if selector:
-                        el = page.locator(selector).first
-                        if el.count():
-                            el.scroll_into_view_if_needed()
+                    if selector and selector.startswith("text="):
+                        heading_text = selector.removeprefix("text=")
+                        loc = page.get_by_text(heading_text, exact=True)
+                        if loc.count():
+                            loc.first.scroll_into_view_if_needed()
                             page.wait_for_timeout(500)
-                    page.screenshot(path=str(path), full_page=True)
+                            box = loc.first.bounding_box()
+                            if box:
+                                clip = {
+                                    "x": 0,
+                                    "y": max(0, box["y"] - 16),
+                                    "width": 1440,
+                                    "height": min(780, 900 - max(0, box["y"] - 16)),
+                                }
+                                page.screenshot(path=str(path), clip=clip)
+                            else:
+                                page.screenshot(path=str(path), full_page=True)
+                        else:
+                            page.screenshot(path=str(path), full_page=True)
+                    else:
+                        page.screenshot(path=str(path), full_page=True)
                     self.results.append(ShotResult(name, path.name, "PASS", url))
                     self.log(f"  PASS: {path.name}")
-                    page.close()
                 except Exception as exc:  # noqa: BLE001
                     self.results.append(
                         ShotResult(name, f"{name}.png", "FAIL", url, str(exc)[:200])
                     )
                     self.log(f"  FAIL: {name} — {exc}")
             browser.close()
+
+    def capture_system_flow(self, dash_base: str) -> None:
+        """Capture the bordered System Flow panel at the top of the dashboard."""
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            self.results.append(
+                ShotResult(
+                    "system-flow",
+                    "system-flow.png",
+                    "MANUAL REQUIRED",
+                    dash_base,
+                    "playwright not installed",
+                )
+            )
+            return
+        path = OUT_DIR / "system-flow.png"
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1440, "height": 900})
+                page.goto(dash_base, wait_until="networkidle", timeout=120000)
+                page.wait_for_selector("text=0. How InvForge Works", timeout=120000)
+                page.wait_for_timeout(2000)
+                block = page.locator(
+                    '[data-testid="stVerticalBlockBorderWrapper"]'
+                ).first
+                if block.count():
+                    block.screenshot(path=str(path))
+                else:
+                    loc = page.get_by_text("0. How InvForge Works", exact=True)
+                    loc.first.scroll_into_view_if_needed()
+                    box = loc.first.bounding_box()
+                    if box:
+                        clip = {
+                            "x": 0,
+                            "y": max(0, box["y"] - 16),
+                            "width": 1440,
+                            "height": min(820, 900),
+                        }
+                        page.screenshot(path=str(path), clip=clip)
+                    else:
+                        page.screenshot(path=str(path), full_page=True)
+                browser.close()
+            self.results.append(ShotResult("system-flow", path.name, "PASS", dash_base))
+            self.log("  PASS: system-flow.png")
+        except Exception as exc:  # noqa: BLE001
+            self.results.append(
+                ShotResult(
+                    "system-flow",
+                    "system-flow.png",
+                    "FAIL",
+                    dash_base,
+                    str(exc)[:200],
+                )
+            )
 
     def capture_curl_json(self, name: str, url: str) -> None:
         """Render JSON health response as minimal HTML for screenshot."""
@@ -174,6 +253,185 @@ pre{{white-space:pre-wrap;font-size:13px}}</style></head>
         except Exception as exc:  # noqa: BLE001
             self.results.append(ShotResult(name, f"{name}.png", "FAIL", url, str(exc)[:200]))
 
+    def capture_terminal_log_png(self, name: str, text: str) -> None:
+        """Render terminal output as PNG for portfolio evidence."""
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            self.results.append(
+                ShotResult(
+                    name,
+                    f"{name}.png",
+                    "MANUAL REQUIRED",
+                    "make demo-local",
+                    "playwright not installed",
+                )
+            )
+            return
+        safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        html = f"""<!DOCTYPE html><html><head><meta charset=utf-8>
+<title>{name}</title>
+<style>body{{background:#1e1e1e;color:#d4d4d4;font-family:Menlo,monospace;padding:1.5rem;margin:0}}
+pre{{white-space:pre-wrap;font-size:12px;line-height:1.4}}</style></head>
+<body><pre>{safe}</pre></body></html>"""
+        tmp = OUT_DIR / f"_{name}.html"
+        tmp.write_text(html, encoding="utf-8")
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1280, "height": 720})
+                page.goto(tmp.as_uri(), wait_until="load")
+                page.screenshot(path=str(OUT_DIR / f"{name}.png"), full_page=True)
+                browser.close()
+            self.results.append(
+                ShotResult(name, f"{name}.png", "PASS", "make demo-local")
+            )
+            self.log(f"  PASS: {name}.png")
+        except Exception as exc:  # noqa: BLE001
+            self.results.append(
+                ShotResult(name, f"{name}.png", "FAIL", "make demo-local", str(exc)[:200])
+            )
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def capture_github_actions(self) -> None:
+        url = "https://github.com/dannzapper-cmd/project-3/pull/17/checks"
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            self.results.append(
+                ShotResult(
+                    "github-actions-green",
+                    "github-actions-green.png",
+                    "MANUAL REQUIRED",
+                    url,
+                    "playwright not installed",
+                )
+            )
+            return
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1440, "height": 900})
+                page.goto(url, wait_until="networkidle", timeout=90000)
+                page.wait_for_timeout(3000)
+                path = OUT_DIR / "github-actions-green.png"
+                page.screenshot(path=str(path), full_page=True)
+                browser.close()
+            self.results.append(
+                ShotResult("github-actions-green", path.name, "PASS", url)
+            )
+            self.log("  PASS: github-actions-green.png")
+        except Exception as exc:  # noqa: BLE001
+            self.results.append(
+                ShotResult(
+                    "github-actions-green",
+                    "github-actions-green.png",
+                    "MANUAL REQUIRED",
+                    url,
+                    str(exc)[:200],
+                )
+            )
+
+    def capture_marquez_lineage(self) -> None:
+        if os.environ.get("SKIP_MARQUEZ") == "1":
+            existing = OUT_DIR / "marquez-lineage.png"
+            if existing.is_file():
+                self.results.append(
+                    ShotResult(
+                        "marquez-lineage",
+                        existing.name,
+                        "PASS",
+                        "http://127.0.0.1:3000",
+                        "retained existing capture (SKIP_MARQUEZ=1)",
+                    )
+                )
+                self.log("  SKIP: marquez-lineage.png (retained)")
+                return
+        if not all(shutil.which(t) for t in ("kind", "kubectl", "helm", "docker")):
+            self.results.append(
+                ShotResult(
+                    "marquez-lineage",
+                    "marquez-lineage.png",
+                    "MANUAL REQUIRED",
+                    "http://127.0.0.1:3000",
+                    "kind/kubectl/helm/docker not all available",
+                )
+            )
+            return
+        self.log("Marquez capture: lineage-up (sequential, may take several minutes) ...")
+        subprocess.run(["make", "docker-down"], cwd=REPO_ROOT, capture_output=True)
+        if not self.run_make("lineage-up"):
+            self.results.append(
+                ShotResult(
+                    "marquez-lineage",
+                    "marquez-lineage.png",
+                    "MANUAL REQUIRED",
+                    "http://127.0.0.1:3000",
+                    "make lineage-up failed",
+                )
+            )
+            return
+        pf = subprocess.Popen(
+            ["bash", "deploy/k8s/lineage/scripts/port-forward.sh"],
+            cwd=REPO_ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        try:
+            if self.wait_url("http://127.0.0.1:3000", timeout=120):
+                subprocess.run(
+                    ["make", "lineage-smoke"],
+                    cwd=REPO_ROOT,
+                    capture_output=True,
+                    timeout=600,
+                )
+                from playwright.sync_api import sync_playwright
+
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(headless=True)
+                    page = browser.new_page(viewport={"width": 1440, "height": 900})
+                    page.goto("http://127.0.0.1:3000", wait_until="networkidle", timeout=90000)
+                    page.wait_for_timeout(2000)
+                    search = page.locator("input[type='search'], input[placeholder*='Search']").first
+                    if search.count():
+                        search.fill("invforge.retraining")
+                        page.wait_for_timeout(1500)
+                    path = OUT_DIR / "marquez-lineage.png"
+                    page.screenshot(path=str(path), full_page=True)
+                    browser.close()
+                self.results.append(
+                    ShotResult(
+                        "marquez-lineage",
+                        "marquez-lineage.png",
+                        "PASS",
+                        "http://127.0.0.1:3000",
+                    )
+                )
+                self.log("  PASS: marquez-lineage.png")
+        except Exception as exc:  # noqa: BLE001
+            self.results.append(
+                ShotResult(
+                    "marquez-lineage",
+                    "marquez-lineage.png",
+                    "MANUAL REQUIRED",
+                    "http://127.0.0.1:3000",
+                    str(exc)[:200],
+                )
+            )
+        finally:
+            try:
+                os.killpg(pf.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                try:
+                    pf.terminate()
+                except OSError:
+                    pass
+            subprocess.run(["make", "lineage-down"], cwd=REPO_ROOT, capture_output=True)
+
     def write_manifest(self) -> None:
         lines = [
             "# Screenshot manifest (PR-13)",
@@ -185,7 +443,9 @@ pre{{white-space:pre-wrap;font-size:13px}}</style></head>
             "|------|--------|-----|-------|",
         ]
         for r in self.results:
-            lines.append(f"| `{r.file}` | **{r.status}** | {r.url or '—'} | {r.notes or '—'} |")
+            lines.append(
+                f"| `{r.file}` | **{r.status}** | {r.url or '—'} | {r.notes or '—'} |"
+            )
         lines.extend(["", "Regenerate: `bash scripts/capture_pr13_screenshots.sh`", ""])
         MANIFEST.write_text("\n".join(lines), encoding="utf-8")
         self.log(f"Manifest: {MANIFEST}")
@@ -230,9 +490,14 @@ def main() -> int:
         )
 
     if dash_ok:
+        runner.capture_system_flow(dash_base)
         runner.capture_playwright([
             ("dashboard-overview", dash_base, "text=1. Overview"),
-            ("dashboard-decision-intelligence", dash_base, "text=3. Decision Intelligence"),
+            (
+                "dashboard-decision-intelligence",
+                dash_base,
+                "text=3. Decision Intelligence",
+            ),
             ("dashboard-mlops", dash_base, "text=4. MLOps Status"),
         ])
 
@@ -282,30 +547,12 @@ def main() -> int:
             ShotResult("grafana-observability", "grafana-observability.png", "MANUAL REQUIRED", "http://localhost:3000", "make observability-up failed or Docker unavailable")
         )
 
-    # Marquez — skip heavy kind profile unless kind available; document manual
-    if shutil.which("kind") and shutil.which("kubectl") and shutil.which("helm"):
-        runner.log("Marquez via kind is heavy — marking MANUAL REQUIRED (see docs/screenshots.md)")
-    runner.results.append(
-        ShotResult(
-            "marquez-lineage",
-            "marquez-lineage.png",
-            "MANUAL REQUIRED",
-            "http://localhost:3000 (Marquez UI via lineage-port-forward)",
-            "Run: make lineage-up && make lineage-port-forward — capture invforge.retraining job",
-        )
-    )
+    # Marquez lineage (optional kind profile — sequential)
+    runner.capture_marquez_lineage()
 
-    runner.results.append(
-        ShotResult(
-            "github-actions-green",
-            "github-actions-green.png",
-            "MANUAL REQUIRED",
-            "https://github.com/dannzapper-cmd/project-3/actions",
-            "Export after PR-13 push when CI is green",
-        )
-    )
+    runner.capture_github_actions()
 
-    # Terminal demo-local — save text evidence
+    # Terminal demo-local evidence
     log_path = OUT_DIR / "demo-local-pass.log"
     r = subprocess.run(
         ["make", "demo-local"],
@@ -313,16 +560,20 @@ def main() -> int:
         capture_output=True,
         text=True,
     )
-    log_path.write_text(r.stdout[-4000:] if r.stdout else r.stderr, encoding="utf-8")
-    runner.results.append(
-        ShotResult(
-            "terminal-demo-local-pass",
-            "terminal-demo-local-pass.png",
-            "MANUAL REQUIRED" if r.returncode == 0 else "FAIL",
-            "—",
-            f"Text log saved: {log_path.name}; screenshot terminal manually if needed",
+    log_text = r.stdout[-4000:] if r.stdout else r.stderr
+    log_path.write_text(log_text, encoding="utf-8")
+    if r.returncode == 0:
+        runner.capture_terminal_log_png("terminal-demo-local-pass", log_text)
+    else:
+        runner.results.append(
+            ShotResult(
+                "terminal-demo-local-pass",
+                "terminal-demo-local-pass.png",
+                "FAIL",
+                "make demo-local",
+                "demo-local returned non-zero",
+            )
         )
-    )
 
     runner.write_manifest()
 

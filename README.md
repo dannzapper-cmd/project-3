@@ -18,15 +18,20 @@ InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://
 
 ## Screenshots
 
-Captured from locally running services after `make demo-local`:
+Captured from locally running services after `make demo-local`. The **System Flow**
+panel shows the backend pipeline chain this dashboard reads — not a frontend-only demo.
 
-| Dashboard overview | Decision intelligence | API docs |
+| System flow (backend chain) | Dashboard overview | Decision intelligence |
 |---|---|---|
-| ![Dashboard overview](docs/assets/screenshots/dashboard-overview.png) | ![Decision intelligence](docs/assets/screenshots/dashboard-decision-intelligence.png) | ![API docs](docs/assets/screenshots/api-docs.png) |
+| ![System flow](docs/assets/screenshots/system-flow.png) | ![Dashboard overview](docs/assets/screenshots/dashboard-overview.png) | ![Decision intelligence](docs/assets/screenshots/dashboard-decision-intelligence.png) |
 
-| MLOps status | API health | Grafana (local) |
+| API health | API docs | Grafana (local) |
 |---|---|---|
-| ![MLOps](docs/assets/screenshots/dashboard-mlops.png) | ![API health](docs/assets/screenshots/api-health.png) | ![Grafana](docs/assets/screenshots/grafana-observability.png) |
+| ![API health](docs/assets/screenshots/api-health.png) | ![API docs](docs/assets/screenshots/api-docs.png) | ![Grafana](docs/assets/screenshots/grafana-observability.png) |
+
+| Marquez lineage | GitHub Actions (PR #17) |
+|---|---|
+| ![Marquez lineage](docs/assets/screenshots/marquez-lineage.png) | ![GitHub Actions green](docs/assets/screenshots/github-actions-green.png) |
 
 More: [screenshots folder](docs/assets/screenshots/) · [screenshot guide](docs/screenshots.md)
 

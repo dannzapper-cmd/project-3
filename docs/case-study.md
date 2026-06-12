@@ -62,6 +62,11 @@ InvForge spans 13 incremental PRs (PR-01 through PR-12.6 merged):
 
 Single-command demo chain: `make demo-local`.
 
+The Streamlit dashboard section **0. How InvForge Works** makes the backend chain
+visible: data → validation → forecasting → decision intel → MLOps, plus companion
+surfaces (API, observability, lineage). Green status cards mean artifacts exist on
+disk — the UI is read-only proof, not the compute layer.
+
 ## AI/ML pipeline
 
 **Demand forecasting:**

@@ -70,6 +70,9 @@ Open `http://localhost:8501`.
 
 ### Panel walkthrough
 
+0. **How InvForge Works (System Flow)** — shows the backend pipeline chain
+   (`make demo-local`) and artifact paths this dashboard reads. Emphasize: *not a
+   frontend-only demo — ML/MLOps already ran.*
 1. **Overview** — four status cards: Data, ML forecast, Decision intel, MLOps. All should be green.
 2. **Forecast Performance** — champion vs challenger metrics; emphasize p10/p50/p90 quantiles.
 3. **Decision Intelligence** — top reorder recommendations; highlight `SKU-C330` / high stockout risk from [demo scenario](../examples/demo-scenario/README.md).
