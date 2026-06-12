@@ -177,10 +177,11 @@ def _render_quick_links(settings: DashboardSettings) -> None:
     st.subheader("Quick links")
     api_base = settings.api_base_url
     repo = settings.github_repo_url
-    guide = f"{repo}/blob/main/{settings.reviewer_guide_path}"
-    evidence = f"{repo}/blob/main/{settings.evidence_doc_path}"
-    scenario = f"{repo}/blob/main/examples/demo-scenario/scenario.yaml"
-    sample_api = f"{repo}/blob/main/examples/api/forecast_request.json"
+    guide = settings.github_blob_url(settings.reviewer_guide_path)
+    evidence = settings.github_blob_url(settings.evidence_doc_path)
+    scenario = settings.github_blob_url("examples/demo-scenario/scenario.yaml")
+    sample_api = settings.github_blob_url("examples/api/forecast_request.json")
+    pr_url = f"{repo}/pull/21"
 
     if api_base:
         c1, c2 = st.columns(2)
@@ -197,15 +198,19 @@ def _render_quick_links(settings: DashboardSettings) -> None:
     with c3:
         st.link_button("GitHub repo", repo, use_container_width=True)
     with c4:
-        st.link_button("Reviewer guide", guide, use_container_width=True)
+        st.link_button("PR #21 (this release)", pr_url, use_container_width=True)
 
     c5, c6 = st.columns(2)
     with c5:
-        st.link_button("Sample scenario YAML", scenario, use_container_width=True)
+        st.link_button("Reviewer guide", guide, use_container_width=True)
     with c6:
         st.link_button("Technical evidence", evidence, use_container_width=True)
 
-    st.caption(f"Sample API JSON: `{sample_api}`")
+    c7, c8 = st.columns(2)
+    with c7:
+        st.link_button("Sample scenario YAML", scenario, use_container_width=True)
+    with c8:
+        st.link_button("Sample API JSON", sample_api, use_container_width=True)
 
 
 def _render_system_flow(settings: DashboardSettings) -> None:

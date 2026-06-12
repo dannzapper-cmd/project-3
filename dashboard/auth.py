@@ -38,7 +38,7 @@ def render_login_gate(settings: DashboardSettings) -> bool:
             )
             st.link_button(
                 "Open reviewer guide",
-                f"{settings.github_repo_url}/blob/main/{settings.reviewer_guide_path}",
+                settings.github_blob_url(settings.reviewer_guide_path),
                 use_container_width=True,
             )
 

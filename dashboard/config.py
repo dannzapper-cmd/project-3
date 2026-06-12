@@ -33,6 +33,7 @@ class DashboardSettings:
     fixtures_root: Path | None = None
     api_base_url: str = ""
     github_repo_url: str = "https://github.com/dannzapper-cmd/project-3"
+    github_docs_ref: str = "main"
     reviewer_guide_path: str = "docs/REVIEWER_DEMO_GUIDE.md"
     evidence_doc_path: str = "docs/evidence/PR14_CLOUD_RUN_LIVE_DEMO.md"
 
@@ -63,6 +64,9 @@ class DashboardSettings:
             return "Cloud · fixture-backed read-only demo"
         return "Local · full pipeline artifacts"
 
+    def github_blob_url(self, path: str) -> str:
+        return f"{self.github_repo_url}/blob/{self.github_docs_ref}/{path.lstrip('/')}"
+
     @classmethod
     def from_env(cls) -> "DashboardSettings":
         env = os.getenv("INVFORGE_ENV", cls.env).strip().lower() or cls.env
@@ -90,6 +94,9 @@ class DashboardSettings:
             github_repo_url=os.getenv(
                 "INVFORGE_GITHUB_REPO_URL", cls.github_repo_url
             ).rstrip("/"),
+            github_docs_ref=os.getenv(
+                "INVFORGE_GITHUB_DOCS_REF", cls.github_docs_ref
+            ).strip() or cls.github_docs_ref,
             reviewer_guide_path=os.getenv(
                 "INVFORGE_REVIEWER_GUIDE_PATH", cls.reviewer_guide_path
             ),

@@ -46,6 +46,8 @@ spec:
               value: "API_BASE_URL_PLACEHOLDER"
             - name: INVFORGE_GITHUB_REPO_URL
               value: "https://github.com/dannzapper-cmd/project-3"
+            - name: INVFORGE_GITHUB_DOCS_REF
+              value: "cursor/pr15-live-dashboard-reviewer-ux-hardening"
           resources:
             limits:
               cpu: "1"
