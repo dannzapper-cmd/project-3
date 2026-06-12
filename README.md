@@ -288,6 +288,15 @@ See `PROJECT_3_INVFORGE_MASTER_CONTEXT.md` for full project context.
 - No real API tokens, passwords, kubeconfigs, or cloud credentials should be
   committed.
 
+## Reviewer guides (PR-12.6)
+
+- [Quick demo walkthrough](docs/tutorials/quick-demo-walkthrough.md) — run the project from zero
+- [Backend and ML explainer](docs/tutorials/backend-and-ml-explainer.md) — architecture and artifacts
+- [Demo scenario](examples/demo-scenario/README.md) — concrete SKU story for the dashboard
+- [Senior QA evidence](docs/evidence/PR12_6_SENIOR_QA_USABLE_DEMO.md) — latest local validation report
+
+Fast offline chain: `make demo-local` (data → ML → MLOps → dashboard smoke; no Docker/k8s).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
