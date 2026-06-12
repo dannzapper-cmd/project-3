@@ -1,8 +1,48 @@
 # Quick demo walkthrough — InvForge from zero
 
-This guide helps a reviewer run InvForge locally, understand what they are seeing,
-and know which claims are safe to make. All commands come from the repo
-`Makefile` — run `make help` for the full list.
+This guide helps a reviewer run InvForge locally, try the live cloud demo, and
+know which claims are safe to make. All commands come from the repo `Makefile` —
+run `make help` for the full list.
+
+## 5 minutes — browser only (live cloud)
+
+1. Open live dashboard: https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app
+   - Sign in: `reviewer` / `invforge-demo`
+   - Note the read-only banner
+2. Open live API docs: https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/docs
+3. Execute `GET /health` — expect HTTP 200
+4. Execute `GET /v1/inventory/status` — read-only config summary
+5. Confirm `POST /v1/ingest/inventree` is blocked (403) in cloud mode
+
+## 15 minutes — local dashboard
+
+```bash
+uv sync --group dev --group pipeline --group ml --group mlops --group dashboard --group observability
+cp app/.env.example app/.env
+make reviewer-demo
+make dashboard
+```
+
+Open http://localhost:8501 and walk through sections 0–4.
+
+## 30 minutes — local + API + samples
+
+After the 15-minute path:
+
+```bash
+make observability-api   # terminal 2
+curl http://localhost:8001/health
+curl http://localhost:8001/metrics
+```
+
+Review sample inputs:
+
+- `examples/demo-scenario/scenario.yaml`
+- `examples/api/forecast_request.json`
+
+Full guide: [`REVIEWER_DEMO_GUIDE.md`](../REVIEWER_DEMO_GUIDE.md)
+
+---
 
 ## What InvForge is
 
@@ -57,7 +97,7 @@ make docker-init   # first time only
 Chain the core offline pipeline:
 
 ```bash
-make demo-local
+make reviewer-demo   # or: make demo-local
 ```
 
 This runs: `generate-data` → `validate-data` → `train-ml` → `decision-intel` →
@@ -140,6 +180,7 @@ Builds the deployable image, runs it in demo mode, smoke-tests, tears down:
 
 ```bash
 make docker-smoke
+make dashboard-docker-smoke
 ```
 
 ## Optional kind smoke (local Kubernetes AI layer)
@@ -161,72 +202,46 @@ make k8s-down
 Requires a running kind cluster **with the AI layer deployed**. See
 `docs/runbooks/observability-startup.md`.
 
-Observability-only (smoke backends, no alert loop):
-
 ```bash
 make k8s-up && make k8s-deploy
 make obs-k8s-up
-make obs-k8s-status
-make obs-k8s-port-forward   # separate terminal
+make obs-k8s-port-forward
 make obs-k8s-smoke
 make obs-k8s-down
 make k8s-down
-```
-
-Full alert loop (AI + observability together — needs ~8 GB+ RAM, sequential):
-
-```bash
-make k8s-preflight
-make k8s-up
-make k8s-deploy
-make k8s-smoke
-make obs-k8s-up
-make obs-k8s-port-forward   # separate terminal; wait for pods Ready first
-make obs-k8s-smoke
-make obs-k8s-alert-test     # scales AI to 0, verifies webhook receives InvForgeAIDown
-make obs-k8s-down
-make k8s-down
-```
-
-Or use the evidence collector:
-
-```bash
-bash scripts/collect_pr12_6_evidence.sh --observability-combined
 ```
 
 ## Optional lineage profile (PR-11B)
 
 ```bash
 make lineage-up
-make lineage-port-forward   # separate terminal
+make lineage-port-forward
 make lineage-smoke
 make lineage-down
 ```
 
-## Local dashboard vs live read-only API
+## Local vs live cloud surfaces
 
 | Surface | Where it runs | Command / URL |
 |---------|---------------|---------------|
-| Streamlit dashboard | **Local only** | `make dashboard` → http://localhost:8501 |
+| Streamlit dashboard (full pipeline) | **Local** | `make dashboard` → http://localhost:8501 |
+| Streamlit dashboard (fixtures) | **Live Cloud Run** | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app (`reviewer` / `invforge-demo`) |
 | FastAPI (full artifacts) | **Local** | `make observability-api` → http://localhost:8001 |
-| FastAPI (read-only demo) | **Live Cloud Run** | https://invforge-ai-demo-289428962093.us-central1.run.app |
+| FastAPI (read-only demo) | **Live Cloud Run** | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app |
 
-The live Cloud Run service exposes **only** `/health`, `/metrics`, `/docs`, and
-read-only status routes. It does not bundle ML artifacts, the dashboard, or
-InvenTree. Mutations return HTTP 403.
+The live Cloud Run API exposes `/health`, `/metrics`, `/docs`, and read-only
+status routes. Mutations return HTTP 403. MLflow, ZenML, and retraining stay local.
 
-To deploy your own instance (or tear down the portfolio demo), see
-`deploy/gcp/README.md` and [PR-14 evidence](../evidence/PR14_CLOUD_RUN_LIVE_DEMO.md).
-AWS ECS/Fargate and Azure Container Apps remain activation-ready templates.
+Deploy or teardown: `deploy/gcp/README.md` and [PR-14/PR-15 evidence](../evidence/PR14_CLOUD_RUN_LIVE_DEMO.md).
 
 ## Teardown
 
 ```bash
-make docker-down              # InvenTree Compose
-make k8s-down                 # kind cluster
-make obs-k8s-down             # observability namespace
-make lineage-down             # lineage namespace
-make observability-down       # local Prometheus/Grafana compose
+make docker-down
+make k8s-down
+make obs-k8s-down
+make lineage-down
+make observability-down
 ```
 
 ## Troubleshooting
@@ -234,7 +249,7 @@ make observability-down       # local Prometheus/Grafana compose
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `make k8s-up` OOM | InvenTree Compose still running | `make docker-down`, retry |
-| Dashboard sections "missing" | Artifacts not generated | Run `make train-ml`, `decision-intel`, `mlops-loop` |
+| Dashboard sections "missing" | Artifacts not generated | Run `make reviewer-demo` |
 | `/health` returns 503 locally | Artifacts absent | Run the ML/MLOps pipeline first |
 | `obs-k8s-smoke` fails | Port-forwards not running | `make obs-k8s-port-forward` in another terminal |
 | `lineage-smoke` fails | Marquez API not reachable | `make lineage-port-forward` first |
@@ -243,42 +258,24 @@ make observability-down       # local Prometheus/Grafana compose
 
 | Term | Meaning in InvForge |
 |------|---------------------|
-| **Synthetic data** | CSVs generated locally (seed 42). Not real inventory. Regenerated by `make generate-data`. |
-| **Stockout risk** | Simulated score from forecast error + lead time + on-hand. Ranks SKUs for review — not a live ERP alert. |
-| **p10 / p50 / p90** | Forecast quantiles: pessimistic (10th), median (50th), optimistic (90th) demand. Used for safety stock and reorder logic. |
-| **MLflow** | Local experiment tracking (`mlruns/`). Logs metrics, params, and model artifacts per training run. |
-| **Evidently** | Drift/quality reports in `artifacts/mlops/evidently/`. Feeds the MLOps dashboard section and `/health` drift flag. |
-| **ZenML** | Local orchestration for the PR-09 retraining DAG (SQLite metadata in `.zenml_local/`). |
-| **BentoML** | Packages the champion model into a deployable bundle summary (`artifacts/mlops/bentoml/`). k8s serving is opt-in. |
-
-## What outputs mean
-
-| Output | Meaning |
-|--------|---------|
-| `artifacts/decision/decision_summary.json` | Simulated reorder / stockout diagnostics |
-| `artifacts/mlops/champion_challenger/comparison.json` | Champion vs challenger metrics |
-| `artifacts/mlops/mlops_loop_summary.json` | Drift flag, registry strategy |
-| `/health` payload | Artifact presence + drift/champion decision summary |
-| `/metrics` | Prometheus exposition (when observability group installed) |
-
-## What is synthetic vs real
-
-| Synthetic (demo default) | Real (opt-in) |
-|--------------------------|---------------|
-| `data/synthetic/output/*` CSVs | InvenTree inventory via `POST /v1/ingest/inventree` |
-| Forecasts and cost reductions | Backtest diagnostics only — not real savings |
-| Local MLflow / ZenML metadata | No production registry |
+| **Synthetic data** | CSVs generated locally (seed 42). Not real inventory. |
+| **Stockout risk** | Simulated score from forecast error + lead time + on-hand. |
+| **p10 / p50 / p90** | Forecast quantiles used for safety stock and reorder logic. |
+| **MLflow** | Local experiment tracking (`mlruns/`). |
+| **Evidently** | Drift/quality reports in `artifacts/mlops/evidently/`. |
+| **ZenML** | Local retraining orchestration (`.zenml_local/`). |
+| **BentoML** | Champion model packaging summary (`artifacts/mlops/bentoml/`). |
 
 ## Safe claims
 
 - "Local synthetic pipeline runs deterministically with seed 42."
-- "Read-only API surfaces exist for health, metrics, and inventory status."
-- "Cloud deploy profiles are activation-ready templates; GCP Cloud Run is the documented primary target."
+- "Live read-only API and reviewer dashboard are on Cloud Run."
 - "Mutation endpoints are blocked in demo/cloud mode."
+- "Simulated cost metrics are backtest diagnostics — not production ROI."
 
 ## Not safe claims
 
-- "Deployed to production" (unless you have a live URL and evidence)
+- "Deployed to production"
 - "Real inventory cost savings"
 - "Full observability/lineage validated" (unless you ran the live kind profiles)
 
@@ -286,5 +283,4 @@ make observability-down       # local Prometheus/Grafana compose
 
 - [Backend and ML explainer](backend-and-ml-explainer.md)
 - [Demo scenario](../../examples/demo-scenario/README.md)
-- [PR-12 audit](../audits/pr12-full-qa-audit.md)
 - [Deployment contract](../deployment-contract.md)

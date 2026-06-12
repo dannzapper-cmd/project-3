@@ -1,0 +1,50 @@
+{
+  "artifacts": {
+    "bentoml_build_summary": "artifacts/mlops/bentoml/build_summary.json",
+    "comparison_json": "artifacts/mlops/champion_challenger/comparison.json",
+    "comparison_md": "artifacts/mlops/champion_challenger/comparison.md",
+    "evidently_dir": "artifacts/mlops/evidently",
+    "registry_summary": "artifacts/mlops/registry/registered_model_summary.json"
+  },
+  "data_source": "synthetic",
+  "generated_at_utc": "2026-06-12T18:03:20.780716+00:00",
+  "limitations": [
+    "All inputs are synthetic (seed 42); nothing here reflects live InvenTree demand.",
+    "Local file-store MLflow registry; no central server or production governance.",
+    "Champion/challenger and cost figures are synthetic/simulated, not real-world claims."
+  ],
+  "schema_version": "1.0",
+  "scope": "PR-05 local MLOps loop",
+  "seed": 42,
+  "steps": {
+    "bentoml": {
+      "deferred_to": null,
+      "status": "packaged"
+    },
+    "champion_challenger": {
+      "decision": "manual_review",
+      "primary_metric": "mae"
+    },
+    "evidently": {
+      "dataset_drift_detected": false,
+      "drifted_share": 0.13333333333333333,
+      "periods": {
+        "current_period": "2024-10-24 to 2024-12-30",
+        "current_rows": "8160",
+        "reference_period": "2024-01-29 to 2024-10-23",
+        "reference_rows": "32280"
+      },
+      "status": "generated"
+    },
+    "registry": {
+      "registered": true,
+      "registry_strategy": "native_aliases",
+      "version": "4"
+    }
+  },
+  "warnings": [
+    "Synthetic data only.",
+    "Local registry; ephemeral mlruns/ store.",
+    "Not a production deployment or real-world performance claim."
+  ]
+}

@@ -59,7 +59,8 @@ htmlcov/
 # Source not needed by the deployable AI Operations image
 ml/
 mlops/
-dashboard/
+# dashboard/ is required for Dockerfile.dashboard builds; the API Dockerfile
+# does not COPY it, so keeping it in the build context is safe.
 security/
 feast/
 tests/

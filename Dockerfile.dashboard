@@ -1,0 +1,44 @@
+# InvForge AI Operations Dashboard — Cloud Run deployable image (PR-15).
+#
+# Separate from the API Dockerfile. Bundles:
+#   - Streamlit dashboard (read-only artifact viewer)
+#   - Lightweight committed demo fixtures (dashboard/demo_fixtures/)
+#
+# Does NOT include ML training, MLflow, ZenML, InvenTree, or mutation paths.
+
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
+
+WORKDIR /app
+COPY pyproject.toml ./
+RUN uv sync --no-dev --no-install-project --group dashboard
+
+FROM python:3.12-slim-bookworm AS runtime
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    INVFORGE_ENV=cloud \
+    INVFORGE_DEMO_AUTH_ENABLED=true \
+    INVFORGE_DASHBOARD_FIXTURES_DIR=/app/dashboard/demo_fixtures \
+    PORT=8080
+
+WORKDIR /app
+RUN useradd --create-home --uid 10001 appuser
+
+COPY --from=builder /app/.venv /app/.venv
+COPY dashboard ./dashboard
+
+USER appuser
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import os,sys,urllib.request; \
+port=os.environ.get('PORT','8080'); \
+sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/_stcore/health', timeout=3).status==200 else 1)"
+
+CMD ["sh", "-c", "exec streamlit run dashboard/app.py --server.headless true --server.address 0.0.0.0 --server.port ${PORT:-8080}"]

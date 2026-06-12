@@ -1,0 +1,62 @@
+{
+  "challenger": {
+    "metrics": {
+      "mae": 2.0882569639804642,
+      "mape": 26.26271977851123,
+      "rmse": 3.0916029527233717
+    },
+    "name": "statsforecast",
+    "role": "alternative baseline",
+    "source": "mlflow_run:ebfc6d5e055640769df378c61b6aea18"
+  },
+  "champion": {
+    "metrics": {
+      "mae": 2.1020903090688687,
+      "mape": 26.399085071856483,
+      "rmse": 3.1103471291966205
+    },
+    "name": "lightgbm",
+    "role": "current/incumbent",
+    "source": "mlflow_run:ebfc6d5e055640769df378c61b6aea18"
+  },
+  "comparison": {
+    "absolute_delta": -0.013833345088404503,
+    "decision_threshold_pct": 5.0,
+    "primary_metric_challenger": 2.0882569639804642,
+    "primary_metric_champion": 2.1020903090688687,
+    "relative_improvement_pct": 0.6580756796567914
+  },
+  "decision": "manual_review",
+  "generated_at_utc": "2026-06-12T18:03:19.874057+00:00",
+  "limitations": [
+    "All inputs are synthetic (seed 42); nothing here reflects live InvenTree demand.",
+    "Local file-store MLflow registry; no central server or production governance.",
+    "Champion/challenger and cost figures are synthetic/simulated, not real-world claims."
+  ],
+  "primary_metric": "mae",
+  "primary_metric_direction": "lower_is_better",
+  "reason": "Models are within 5.0% on mae (relative improvement +0.66%). Too close to call; manual review required.",
+  "schema_version": "1.0",
+  "supporting_context": {
+    "pr04_cost_metrics": {
+      "available": true,
+      "cost_reduction_vs_best_baseline_pct": 77.57662125859031,
+      "label": "synthetic/simulated decision-layer cost diagnostics",
+      "selected_pinball_loss": 0.23728445895390432,
+      "source": "artifacts/decision/decision_summary.json",
+      "synthetic": true,
+      "test_period": "2024-10-07 to 2024-12-30",
+      "warnings": [
+        "PR-04 cost reductions are synthetic/simulated and are not real-world savings."
+      ]
+    }
+  },
+  "temporal_split": {
+    "source": "PR-03 demand_forecast_baseline run",
+    "test_period": "2024-10-07 to 2024-12-30",
+    "train_fraction": 0.75
+  },
+  "warnings": [
+    "PR-04 cost reductions are synthetic/simulated and are not real-world savings."
+  ]
+}

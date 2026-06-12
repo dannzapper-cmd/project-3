@@ -21,6 +21,10 @@ HELM_RELEASE ?= invforge
 HELM_CHART := deploy/k8s/helm/invforge
 K8S_NAMESPACE ?= invforge-ai
 RETRAIN_IMAGE ?= invforge-retraining:local
+DASHBOARD_IMAGE ?= invforge-dashboard:local
+DASHBOARD_PORT ?= 8501
+LIVE_API_URL ?= https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app
+LIVE_DASHBOARD_URL ?= https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app
 BENTO_IMAGE ?= invforge_demand_forecast:local
 # PR-11B optional observability + lineage profiles (NEVER started by k8s-up).
 OBS_CHART := deploy/k8s/observability
@@ -30,7 +34,7 @@ LINEAGE_CHART := deploy/k8s/lineage
 LINEAGE_RELEASE ?= invforge-lineage
 LINEAGE_NAMESPACE ?= invforge-lineage
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke demo-local observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback obs-k8s-up obs-k8s-down obs-k8s-status obs-k8s-smoke obs-k8s-logs obs-k8s-port-forward obs-k8s-alert-test obs-k8s-lint obs-k8s-template lineage-up lineage-down lineage-status lineage-smoke lineage-port-forward lineage-lint
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop demo-local reviewer-demo dashboard dashboard-smoke docker-build-dashboard dashboard-docker-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback obs-k8s-up obs-k8s-down obs-k8s-status obs-k8s-smoke obs-k8s-logs obs-k8s-port-forward obs-k8s-alert-test obs-k8s-lint obs-k8s-template lineage-up lineage-down lineage-status lineage-smoke lineage-port-forward lineage-lint
 
 help:
 	@echo "InvForge — available targets:"
@@ -48,9 +52,12 @@ help:
 	@echo "  train-ml        Train PR-03 demand forecast baselines"
 	@echo "  decision-intel  Generate PR-04 inventory recommendations"
 	@echo "  mlops-loop      Run PR-05 local MLOps loop"
+	@echo "  demo-local      Run full local synthetic pipeline (generate → train → intel → mlops)"
+	@echo "  reviewer-demo   demo-local + printed next steps for reviewers"
 	@echo "  dashboard       Launch PR-06 Streamlit AI Operations dashboard"
 	@echo "  dashboard-smoke Non-interactive dashboard loader smoke check"
-	@echo "  demo-local      Chain safe local pipeline (data→ML→MLOps→dashboard-smoke; no Docker/k8s)"
+	@echo "  docker-build-dashboard  Build Cloud Run dashboard image"
+	@echo "  dashboard-docker-smoke  Build+run dashboard container with auth smoke"
 	@echo "  observability-api   Start the AI Ops API with /health and /metrics (uvicorn)"
 	@echo "  observability-up    Start local Prometheus + Grafana (Docker)"
 	@echo "  observability-down  Stop local Prometheus + Grafana (Docker)"
@@ -185,6 +192,35 @@ model-rollback:
 model-rollback-confirm:
 	$(RETRAIN_ENV) ROLLBACK_CONFIRM=true $(UV) run --group ml --group retraining python -m mlops.retraining.runner rollback --mode smoke --confirm
 
+# Full local synthetic demo chain (deterministic seed 42). Does not start
+# InvenTree, the API, or Streamlit — only generates local artifacts.
+demo-local: generate-data validate-data train-ml decision-intel mlops-loop dashboard-smoke
+	@echo ""
+	@echo "Local synthetic pipeline complete."
+	@echo "  Artifacts: artifacts/decision/ artifacts/mlops/"
+	@echo "  Next: make dashboard  (http://localhost:8501)"
+	@echo "  Optional API: make observability-api  (http://localhost:$(INVFORGE_API_PORT)/health)"
+
+# Reviewer-friendly wrapper: one command, clear follow-on steps.
+reviewer-demo: demo-local
+	@echo ""
+	@echo "=== InvForge reviewer demo — next steps ==="
+	@echo "1. Launch dashboard:  make dashboard"
+	@echo "   Open:             http://localhost:8501"
+	@echo "2. Optional API:      make observability-api"
+	@echo "   Health:           http://localhost:$(INVFORGE_API_PORT)/health"
+	@echo "   Metrics:          http://localhost:$(INVFORGE_API_PORT)/metrics"
+	@echo "   OpenAPI docs:     http://localhost:$(INVFORGE_API_PORT)/docs"
+	@echo "3. Live cloud API:    $(LIVE_API_URL)/docs"
+	@echo "4. Live dashboard:    $(LIVE_DASHBOARD_URL)"
+	@echo "5. Reviewer guide:    docs/REVIEWER_DEMO_GUIDE.md"
+	@echo "6. Sample inputs:     examples/demo-scenario/scenario.yaml"
+	@echo "                      examples/api/forecast_request.json"
+	@echo "7. Test cloud auth locally (optional):"
+	@echo "   INVFORGE_DEMO_AUTH_ENABLED=true INVFORGE_DEMO_USER=reviewer INVFORGE_DEMO_PASSWORD=invforge-demo make dashboard"
+	@echo ""
+	@echo "Artifacts generated under: artifacts/decision/ artifacts/mlops/ data/synthetic/output/"
+
 # PR-06 AI Operations Dashboard (read-only artifact visualization).
 dashboard:
 	PYTHONPATH=. $(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true
@@ -192,9 +228,29 @@ dashboard:
 dashboard-smoke:
 	$(UV) run --group dashboard python -m dashboard.smoke
 
-# PR-12.6 reviewer convenience: offline local demo chain. Fails if any step fails.
-# Does not start Docker, kind, cloud resources, or the long-running dashboard.
-demo-local: generate-data validate-data train-ml decision-intel mlops-loop dashboard-smoke
+docker-build-dashboard:
+	docker build -f Dockerfile.dashboard -t $(DASHBOARD_IMAGE) .
+
+# Build, run cloud-mode dashboard container, verify auth gate + health, tear down.
+dashboard-docker-smoke: docker-build-dashboard
+	@docker rm -f invforge-dashboard-smoke >/dev/null 2>&1 || true
+	docker run -d --name invforge-dashboard-smoke \
+		-e INVFORGE_ENV=cloud \
+		-e INVFORGE_DEMO_AUTH_ENABLED=true \
+		-e INVFORGE_DEMO_USER=reviewer \
+		-e INVFORGE_DEMO_PASSWORD=invforge-demo-smoke \
+		-e INVFORGE_API_BASE_URL=$(LIVE_API_URL) \
+		-e PORT=$(DASHBOARD_PORT) \
+		-p $(DASHBOARD_PORT):$(DASHBOARD_PORT) \
+		$(DASHBOARD_IMAGE)
+	@echo "Waiting for Streamlit health..."; \
+	for i in $$(seq 1 45); do \
+		curl -fsS http://localhost:$(DASHBOARD_PORT)/_stcore/health >/dev/null 2>&1 && break; sleep 1; done
+	@echo "Checking unauthenticated response contains login gate..."
+	@curl -fsS http://localhost:$(DASHBOARD_PORT)/ | grep -qi "Reviewer Demo" || \
+		{ echo "ERROR: login gate not visible"; docker logs invforge-dashboard-smoke; docker rm -f invforge-dashboard-smoke; exit 1; }
+	@echo "Dashboard docker smoke passed."
+	@docker rm -f invforge-dashboard-smoke >/dev/null 2>&1 || true
 
 # PR-07 observability: launch the AI Operations API exposing /health and
 # /metrics. Local URL: http://localhost:$(INVFORGE_API_PORT)

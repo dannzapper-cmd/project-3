@@ -1,0 +1,77 @@
+{
+  "champion": {
+    "alias": "champion",
+    "artifact_references": {
+      "model_uri": "runs:/ebfc6d5e055640769df378c61b6aea18/lightgbm_model",
+      "run_artifact_uri": "/Users/danny/project-3/mlruns/858108255698640111/ebfc6d5e055640769df378c61b6aea18/artifacts"
+    },
+    "input_example_logged": false,
+    "metrics": {
+      "lightgbm_mae": 2.1020903090688687,
+      "lightgbm_mape": 26.399085071856483,
+      "lightgbm_rmse": 3.1103471291966205,
+      "statsforecast_mae": 2.0882569639804642,
+      "statsforecast_mape": 26.26271977851123,
+      "statsforecast_rmse": 3.0916029527233717
+    },
+    "params": {
+      "lgbm_colsample_bytree": "0.8",
+      "lgbm_learning_rate": "0.05",
+      "lgbm_max_depth": "-1",
+      "lgbm_metric": "mae",
+      "lgbm_min_child_samples": "20",
+      "lgbm_n_estimators": "200",
+      "lgbm_num_leaves": "31",
+      "lgbm_objective": "regression",
+      "lgbm_random_state": "42",
+      "lgbm_subsample": "0.8",
+      "lgbm_verbose": "-1",
+      "num_items": "120",
+      "shap_skipped": "false",
+      "statsforecast_model_usage": "{\"regular\": [\"AutoETS\", \"SeasonalNaive\"], \"intermittent\": [\"CrostonClassic\", \"CrostonSBA\"]}",
+      "test_end": "2024-12-30",
+      "test_rows": "10200",
+      "test_start": "2024-10-07",
+      "train_end": "2024-10-06",
+      "train_fraction": "0.75",
+      "train_rows": "30240",
+      "train_start": "2024-01-29"
+    },
+    "registered": true,
+    "run_id": "ebfc6d5e055640769df378c61b6aea18",
+    "signature": null,
+    "signature_logged": false,
+    "source_model_uri": "runs:/ebfc6d5e055640769df378c61b6aea18/lightgbm_model",
+    "tags": {
+      "data_source": "synthetic",
+      "managed_by": "invforge_mlops_loop",
+      "pr05_champion_run_id": "ebfc6d5e055640769df378c61b6aea18",
+      "production_ready": "false",
+      "scope": "pr05"
+    },
+    "version": "4"
+  },
+  "champion_alias": "champion",
+  "generated_at_utc": "2026-06-12T18:03:19.861024+00:00",
+  "idempotency": {
+    "action": "registered_new_version",
+    "note": "Registered version 4 from run ebfc6d5e055640769df378c61b6aea18."
+  },
+  "limitations": [
+    "Local MLflow file-store registry: no central server, authentication, stage transitions audit, or multi-user governance.",
+    "The mlruns/ tracking store is regenerated locally and is not committed to git, so registry state is ephemeral per machine.",
+    "Models are trained on synthetic data; registry metadata does not imply production readiness."
+  ],
+  "model_name": "demand_forecast",
+  "model_tags": {
+    "data_source": "synthetic",
+    "managed_by": "invforge_mlops_loop",
+    "production_ready": "false",
+    "scope": "pr05"
+  },
+  "registry_strategy": "native_aliases",
+  "schema_version": "1.0",
+  "source_experiment": "demand_forecast_baseline",
+  "tracking_uri": "mlruns",
+  "warnings": []
+}

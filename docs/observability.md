@@ -102,8 +102,8 @@ invforge_artifact_age_seconds{artifact="decision_summary"} 123.0
 invforge_drift_detected 0.0
 invforge_champion_challenger_decision{decision="manual_review"} 1.0
 invforge_bentoml_packaged 0.0
-invforge_api_requests_total{method="GET",endpoint="/health",status_code="200"} 1.0
-invforge_api_request_duration_seconds_bucket{method="GET",endpoint="/health",le="0.1"} 1.0
+invforge_api_requests_total{method="GET",endpoint="health",status_code="200"} 1.0
+invforge_api_request_duration_seconds_bucket{method="GET",endpoint="health",le="0.1"} 1.0
 ```
 
 ## 4. Start Prometheus + Grafana locally (optional, Docker)

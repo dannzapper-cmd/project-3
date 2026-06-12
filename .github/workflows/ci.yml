@@ -21,8 +21,8 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install dev, ML, and retraining dependencies
-        run: uv sync --group dev --group ml --group retraining
+      - name: Install dev, ML, retraining, and observability dependencies
+        run: uv sync --group dev --group ml --group retraining --group observability
 
       - name: Lint with Ruff
         run: uv run ruff check .
@@ -31,7 +31,7 @@ jobs:
         env:
           MLFLOW_ALLOW_FILE_STORE: "true"
           ZENML_ANALYTICS_OPT_IN: "false"
-        run: uv run --group dev --group ml --group retraining pytest
+        run: uv run --group dev --group ml --group retraining --group observability pytest
 
       - name: Generate synthetic data
         run: |

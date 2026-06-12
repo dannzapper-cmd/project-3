@@ -381,7 +381,6 @@ def main() -> int:
         _validate_readme(failures, provider)
 
     _validate_dockerignore(failures)
-
     _validate_helm_charts(failures)
 
     if not _YAML:

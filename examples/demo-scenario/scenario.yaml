@@ -1,0 +1,41 @@
+# InvForge demo scenario (synthetic, seed 42)
+
+name: invforge-portfolio-demo
+description: >
+  Deterministic synthetic inventory scenario for reviewer demos.
+  Not real inventory data. Simulated backtest diagnostics only.
+
+seed: 42
+service_level: 0.95
+
+pipeline:
+  - make generate-data
+  - make train-ml
+  - make decision-intel
+  - make mlops-loop
+
+artifacts:
+  decision_summary: artifacts/decision/decision_summary.json
+  decision_recommendations: artifacts/decision/decision_recommendations.csv
+  champion_challenger: artifacts/mlops/champion_challenger/comparison.json
+  mlops_summary: artifacts/mlops/mlops_loop_summary.json
+
+sample_parts:
+  - part_id: PRT-0001
+    demand_pattern: regular
+    story: stable SKU — steady demand, low stockout risk in synthetic backtest
+  - part_id: PRT-0015
+    demand_pattern: intermittent
+    story: intermittent SKU — Croston-family baseline candidate
+  - part_id: PRT-0088
+    demand_pattern: regular
+    story: rising risk SKU — higher stockout risk in decision recommendations table
+  - part_id: PRT-0042
+    demand_pattern: regular
+    story: long lead time SKU — reorder point driven by extended supplier lead time
+
+caveats:
+  - Synthetic data only (seed 42)
+  - Read-only cloud dashboard uses truncated committed fixtures
+  - Cost metrics are simulated — not real savings claims
+  - Full pipeline is local-only

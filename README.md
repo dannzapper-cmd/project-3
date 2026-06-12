@@ -4,7 +4,7 @@
 
 InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It turns inventory events and demand history into forecast-informed decisions, risk flags, reorder recommendations, model health checks, and auditable operational evidence — **without modifying InvenTree core**.
 
-> **Status:** PR-01 through PR-14 merged. PR-15 final UX acceptance audit.
+> **Status:** PR-15 — live reviewer dashboard + full local demo UX.
 
 ## What this demonstrates
 
@@ -35,26 +35,75 @@ panel shows the backend pipeline chain this dashboard reads — not a frontend-o
 
 More: [screenshots folder](docs/assets/screenshots/) · [screenshot guide](docs/screenshots.md)
 
-## Live API Demo
+## Live Cloud Demo
 
-**Live Cloud Run demo of the read-only AI Operations API** — not production.
+**Live Cloud Run portfolio demo** — read-only API + reviewer dashboard. Not production.
 
-- [Health](https://invforge-ai-demo-289428962093.us-central1.run.app/health)
-- [OpenAPI docs](https://invforge-ai-demo-289428962093.us-central1.run.app/docs)
-- [Metrics](https://invforge-ai-demo-289428962093.us-central1.run.app/metrics)
+| Surface | URL |
+|---------|-----|
+| Dashboard | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app (`reviewer` / `invforge-demo`) |
+| API docs | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/docs |
+| Health | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/health |
+| Metrics | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/metrics |
 
-This live Cloud Run demo exposes **only** the read-only AI Operations API.
-Streamlit dashboard, MLflow, ZenML, InvenTree, retraining, and Kubernetes
-profiles remain **local-only**. Mutation endpoints are blocked
-(`INVFORGE_ALLOW_MUTATIONS=false`).
+MLflow, ZenML, InvenTree, retraining, and Kubernetes profiles remain **local-only**.
+Mutation endpoints are blocked (`INVFORGE_ALLOW_MUTATIONS=false`).
 
-Evidence: [PR-14 Cloud Run report](docs/evidence/PR14_CLOUD_RUN_LIVE_DEMO.md)
+Evidence: [PR-14 / PR-15 Cloud Run report](docs/evidence/PR14_CLOUD_RUN_LIVE_DEMO.md)
 
 | Cloud Run health | Cloud Run docs | Mutation blocked (403) |
 |---|---|---|
 | ![Cloud Run health](docs/assets/screenshots/cloud-run-health.png) | ![Cloud Run docs](docs/assets/screenshots/cloud-run-docs.png) | ![Mutation blocked](docs/assets/screenshots/cloud-run-mutation-blocked.png) |
 
-## Architecture
+## Try InvForge
+
+Choose your reviewer path:
+
+| Path | What | Time |
+|------|------|------|
+| **A. Live Cloud Dashboard** | Read-only Streamlit demo (live) | ~5 min |
+| **B. Live API Demo** | Read-only FastAPI + OpenAPI | ~5 min |
+| **C. Full Local Demo** | Complete synthetic ML/MLOps pipeline + dashboard | ~15–20 min |
+| **D. Technical Evidence** | Deploy profiles, security, ADRs | As needed |
+
+### A. Live Cloud Dashboard
+
+| | |
+|---|---|
+| URL | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app |
+| Login | Username `reviewer` · password `invforge-demo` (reviewer gate only) |
+| Banner | Read-only portfolio demo · synthetic data · not production |
+| Mobile | Login + overview OK; desktop best for charts/tables |
+
+> Reviewer gate only — not production security. Unlocks synthetic read-only content.
+
+### B. Live API Demo
+
+| | |
+|---|---|
+| OpenAPI | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/docs |
+| Health | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/health |
+
+Read-only cloud surface. `POST /v1/ingest/inventree` returns **403** in cloud mode.
+
+### C. Full Local Demo
+
+```bash
+uv sync --group dev --group pipeline --group ml --group mlops --group dashboard --group observability
+make reviewer-demo    # synthetic pipeline (generate → train → intel → mlops)
+make dashboard        # http://localhost:8501
+# optional: make observability-api  →  http://localhost:8001/docs
+```
+
+Sample inputs: [`examples/demo-scenario/scenario.yaml`](examples/demo-scenario/scenario.yaml) · [`examples/api/forecast_request.json`](examples/api/forecast_request.json)
+
+**Guide:** [`docs/REVIEWER_DEMO_GUIDE.md`](docs/REVIEWER_DEMO_GUIDE.md)
+
+### D. Advanced Technical Profiles
+
+Local-only: InvenTree (`make docker-up`), observability (`make observability-up`), k8s (`make k8s-up`). See the [Makefile commands](#makefile-commands) table.
+
+---
 
 ```mermaid
 flowchart TB
@@ -157,7 +206,8 @@ Contract: [deployment contract](docs/deployment-contract.md)
 
 ## What remains local-only
 
-- Streamlit dashboard, MLflow, ZenML, retraining UI
+- Full-pipeline Streamlit (local artifacts), MLflow, ZenML, retraining UI
+- Live cloud dashboard uses bundled fixtures only (see [Try InvForge](#try-invforge))
 - InvenTree base stack (external system of record)
 - Synthetic/processed data artifacts (`mlruns/`, `artifacts/`)
 - kind Kubernetes profiles (local evidence, not managed cloud k8s)
@@ -196,7 +246,7 @@ Source templates: [deploy/gcp/](deploy/gcp/) · [deploy/aws/](deploy/aws/) · [d
 
 ## Limitations
 
-Honest caveats: synthetic data by default, no production savings claims, no live multi-cloud deployment, dashboard local-only, no production auth layer, kind ≠ managed k8s.
+Honest caveats: synthetic data by default, no production savings claims, no live multi-cloud deployment, cloud dashboard is fixture-backed read-only, demo auth is a reviewer gate only, kind ≠ managed k8s.
 
 Full list: [docs/limitations.md](docs/limitations.md)
 
@@ -226,10 +276,15 @@ examples/         Demo scenario, sample API JSON
 
 | Command | Description |
 |---------|-------------|
-| `make demo-local` | Chain data → ML → MLOps → dashboard smoke |
-| `make dashboard` | Launch Streamlit dashboard |
+| `make demo-local` | Chain data → validate → ML → MLOps → dashboard smoke |
+| `make reviewer-demo` | demo-local + printed reviewer next steps |
+| `make dashboard` | Launch Streamlit AI Operations dashboard |
+| `make dashboard-smoke` | Non-interactive dashboard loader smoke check |
+| `make docker-build-dashboard` | Build Cloud Run dashboard image (`Dockerfile.dashboard`) |
+| `make dashboard-docker-smoke` | Build+run dashboard container; verify auth gate |
 | `make observability-api` | Start API with `/health` and `/metrics` |
 | `make deploy-validate` | Validate deploy profiles (offline) |
+| `make deploy-smoke` | Read-only smoke check (`BASE_URL=...`) against a running API |
 | `make docker-smoke` | Build + smoke deployable container |
 | `make lint` / `make test` | Ruff + pytest |
 | `make secrets-scan` / `make security-check` | Security gates |
