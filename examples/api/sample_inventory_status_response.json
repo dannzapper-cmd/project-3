@@ -1,0 +1,14 @@
+{
+  "status": "ready",
+  "env": "local",
+  "demo_mode": false,
+  "allow_mutations": true,
+  "inventree_base_url": "http://localhost:8080",
+  "inventree_token_configured": false,
+  "inventree_basic_auth_configured": false,
+  "data_dir": "data",
+  "local_data": {
+    "synthetic_rows": 43800,
+    "processed_available": false
+  }
+}

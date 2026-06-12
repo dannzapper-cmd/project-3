@@ -30,7 +30,7 @@ LINEAGE_CHART := deploy/k8s/lineage
 LINEAGE_RELEASE ?= invforge-lineage
 LINEAGE_NAMESPACE ?= invforge-lineage
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback obs-k8s-up obs-k8s-down obs-k8s-status obs-k8s-smoke obs-k8s-logs obs-k8s-port-forward obs-k8s-alert-test obs-k8s-lint obs-k8s-template lineage-up lineage-down lineage-status lineage-smoke lineage-port-forward lineage-lint
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop dashboard dashboard-smoke demo-local observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback obs-k8s-up obs-k8s-down obs-k8s-status obs-k8s-smoke obs-k8s-logs obs-k8s-port-forward obs-k8s-alert-test obs-k8s-lint obs-k8s-template lineage-up lineage-down lineage-status lineage-smoke lineage-port-forward lineage-lint
 
 help:
 	@echo "InvForge — available targets:"
@@ -50,6 +50,7 @@ help:
 	@echo "  mlops-loop      Run PR-05 local MLOps loop"
 	@echo "  dashboard       Launch PR-06 Streamlit AI Operations dashboard"
 	@echo "  dashboard-smoke Non-interactive dashboard loader smoke check"
+	@echo "  demo-local      Chain safe local pipeline (data→ML→MLOps→dashboard-smoke; no Docker/k8s)"
 	@echo "  observability-api   Start the AI Ops API with /health and /metrics (uvicorn)"
 	@echo "  observability-up    Start local Prometheus + Grafana (Docker)"
 	@echo "  observability-down  Stop local Prometheus + Grafana (Docker)"
@@ -191,6 +192,10 @@ dashboard:
 dashboard-smoke:
 	$(UV) run --group dashboard python -m dashboard.smoke
 
+# PR-12.6 reviewer convenience: offline local demo chain. Fails if any step fails.
+# Does not start Docker, kind, cloud resources, or the long-running dashboard.
+demo-local: generate-data validate-data train-ml decision-intel mlops-loop dashboard-smoke
+
 # PR-07 observability: launch the AI Operations API exposing /health and
 # /metrics. Local URL: http://localhost:$(INVFORGE_API_PORT)
 # (e.g. http://localhost:8001/health and http://localhost:8001/metrics).
@@ -222,8 +227,13 @@ security-check:
 
 trivy-scan:
 	@command -v trivy >/dev/null 2>&1 || { echo "trivy not installed; see security/README.md"; exit 1; }
-	trivy fs . --exit-code 1 --severity CRITICAL --quiet
-	trivy fs . --exit-code 0 --severity HIGH --quiet
+	@# Skip local venv/ML caches (not in CI checkout). Scan repo sources + uv.lock.
+	trivy fs . --skip-dirs .venv --skip-dirs mlruns --skip-dirs .git \
+		--skip-dirs .pytest_cache --skip-dirs .ruff_cache --skip-dirs artifacts \
+		--exit-code 1 --severity CRITICAL --quiet
+	trivy fs . --skip-dirs .venv --skip-dirs mlruns --skip-dirs .git \
+		--skip-dirs .pytest_cache --skip-dirs .ruff_cache --skip-dirs artifacts \
+		--exit-code 0 --severity HIGH --quiet
 
 sbom:
 	@command -v syft >/dev/null 2>&1 || { echo "syft not installed; see security/README.md"; exit 1; }
