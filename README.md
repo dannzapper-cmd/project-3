@@ -4,7 +4,7 @@
 
 InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It turns inventory events and demand history into forecast-informed decisions, risk flags, reorder recommendations, model health checks, and auditable operational evidence — **without modifying InvenTree core**.
 
-> **Status:** PR-01 through PR-13 merged. PR-14 adds a live Cloud Run demo of the read-only AI Operations API.
+> **Status:** PR-01 through PR-14 merged. PR-15 final UX acceptance audit.
 
 ## What this demonstrates
 

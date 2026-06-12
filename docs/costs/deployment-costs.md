@@ -5,8 +5,8 @@ Honest, hedged cost guidance for deploying the InvForge AI Operations Layer.
 verify current pricing/free-tier limits in the official provider docs before
 deploying.
 
-> InvForge does **not** maintain active GCP/AWS/Azure deployments by default.
-> The cloud profiles are activation-ready templates; nothing is billed unless
+> PR-14 maintains **one live GCP Cloud Run demo** (read-only API only). AWS and
+> Azure profiles remain activation-ready templates. Nothing else is billed unless
 > **you** deploy with your own account.
 
 ## Local mode
@@ -70,9 +70,16 @@ REGION=... CLUSTER=... SERVICE_NAME=... ./deploy/aws/teardown.example.sh
 RESOURCE_GROUP=... APP_NAME=... ./deploy/azure/teardown.example.sh
 ```
 
+## Live demo cost guardrails (PR-14)
+
+The `invforge-ai-demo` Cloud Run service uses `min-instances: 0`, `max-instances: 1`,
+512Mi / 1 CPU, and **no** GKE, VM, managed DB, Redis, or load balancer. Artifact
+Registry image storage may incur minor ongoing cost. Keep the service live only
+during job-search; tear down with `gcloud run services delete invforge-ai-demo
+--region us-central1` (see [PR-14 evidence](../evidence/PR14_CLOUD_RUN_LIVE_DEMO.md)).
+
 ## PR-10 vs PR-11 cost posture
 
-- PR-10 maintains **no active** GCP/AWS/Azure deployments by default — costs are
-  $0 unless you deploy.
+- PR-10 cloud profiles are templates; PR-14 adds one optional live GCP demo.
 - PR-11's local Kubernetes (kind/k3s) path can be run **without active cloud
   clusters**, so it also incurs **$0** cloud cost when run locally.

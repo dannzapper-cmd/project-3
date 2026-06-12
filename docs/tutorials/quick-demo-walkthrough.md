@@ -203,14 +203,21 @@ make lineage-smoke
 make lineage-down
 ```
 
-## Optional Cloud Run (manual, your GCP project)
+## Local dashboard vs live read-only API
 
-InvForge ships a **template profile** only. No cloud resources are created by CI.
+| Surface | Where it runs | Command / URL |
+|---------|---------------|---------------|
+| Streamlit dashboard | **Local only** | `make dashboard` → http://localhost:8501 |
+| FastAPI (full artifacts) | **Local** | `make observability-api` → http://localhost:8001 |
+| FastAPI (read-only demo) | **Live Cloud Run** | https://invforge-ai-demo-289428962093.us-central1.run.app |
 
-See `deploy/gcp/README.md` for build → push → deploy → teardown with placeholders.
-GCP Cloud Run is the **preferred low-cost public demo** target for the read-only
-AI Operations API. AWS ECS/Fargate and Azure Container Apps are reproducibility
-templates unless you activate them manually.
+The live Cloud Run service exposes **only** `/health`, `/metrics`, `/docs`, and
+read-only status routes. It does not bundle ML artifacts, the dashboard, or
+InvenTree. Mutations return HTTP 403.
+
+To deploy your own instance (or tear down the portfolio demo), see
+`deploy/gcp/README.md` and [PR-14 evidence](../evidence/PR14_CLOUD_RUN_LIVE_DEMO.md).
+AWS ECS/Fargate and Azure Container Apps remain activation-ready templates.
 
 ## Teardown
 
