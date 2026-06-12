@@ -37,9 +37,11 @@ and [PR-12.6 senior QA report](evidence/PR12_6_SENIOR_QA_USABLE_DEMO.md).
 
 ## Cloud and multi-cloud
 
-- **No live multi-cloud deployment.** GCP Cloud Run, AWS ECS/Fargate, and Azure
-  Container Apps profiles are **activation-ready templates** only. No cloud
-  resources are created by CI or PR-13.
+- **One live Cloud Run demo (PR-14).** A read-only AI Operations API is deployed
+  at `invforge-ai-demo` in `us-central1` — not production. AWS ECS/Fargate and
+  Azure Container Apps remain **activation-ready templates** only.
+- **Not live multi-cloud.** Only the GCP read-only API demo is live; dashboard,
+  InvenTree, MLflow, ZenML, retraining, and managed Kubernetes are not deployed.
 - **Cloud profiles require manual activation** with your own credentials, billing,
   and cost acceptance. See [cloud activation guides](cloud/).
 - **No Terraform / full IaC** in the current scope. Production hardening would

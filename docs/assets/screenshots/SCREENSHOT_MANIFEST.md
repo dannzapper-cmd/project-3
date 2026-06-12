@@ -16,4 +16,12 @@ Repo: `/Users/danny/project-3-clean`
 | `github-actions-green.png` | **PASS** | https://github.com/dannzapper-cmd/project-3/pull/17/checks | CI + Deploy Validation + Security green |
 | `terminal-demo-local-pass.png` | **PASS** | make demo-local | Rendered terminal output |
 
-Regenerate: `bash scripts/capture_pr13_screenshots.sh` (set `SKIP_MARQUEZ=1` to retain Marquez PNG)
+### Cloud Run (PR-14 — live)
+
+| File | Status | URL | Notes |
+|------|--------|-----|-------|
+| `cloud-run-health.png` | **PASS** | https://invforge-ai-demo-289428962093.us-central1.run.app/health | Live demo |
+| `cloud-run-docs.png` | **PASS** | https://invforge-ai-demo-289428962093.us-central1.run.app/docs | Live OpenAPI |
+| `cloud-run-mutation-blocked.png` | **PASS** | POST ingest → 403 | Mutation blocked |
+
+Regenerate local set: `bash scripts/capture_pr13_screenshots.sh` (set `SKIP_MARQUEZ=1` to retain Marquez PNG)
