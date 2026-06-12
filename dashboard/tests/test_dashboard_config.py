@@ -34,6 +34,15 @@ def test_local_auth_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.delenv("INVFORGE_DEMO_AUTH_ENABLED", raising=False)
     settings = DashboardSettings.from_env()
     assert settings.demo_auth_enabled is False
+    assert settings.show_demo_credentials_hint is False
+
+
+def test_cloud_credentials_hint_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("INVFORGE_ENV", "cloud")
+    monkeypatch.setenv("INVFORGE_DEMO_PASSWORD", "invforge-demo")
+    settings = DashboardSettings.from_env()
+    assert settings.show_demo_credentials_hint is True
+    assert settings.mode_label.startswith("Cloud")
 
 
 def test_fixtures_exist_in_repo() -> None:

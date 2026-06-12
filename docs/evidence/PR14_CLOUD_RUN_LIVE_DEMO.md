@@ -26,7 +26,8 @@ Smoke: `make deploy-smoke BASE_URL=https://invforge-ai-demo-lwcelvo7ya-uc.a.run.
 | Image | `Dockerfile.dashboard` |
 | URL | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app |
 | Auth | `INVFORGE_DEMO_AUTH_ENABLED=true`, user `reviewer`, password `invforge-demo` |
-| Verified | 2026-06-12 — login gate, read-only banner, fixture-backed sections |
+| Verified | 2026-06-12 — login gate, read-only banner, quick links, sections 1–6 |
+| Visual QA | 2026-06-12 — desktop + mobile login/dashboard pass; mermaid replaced with cards |
 | Teardown | `DASHBOARD_SERVICE_NAME=invforge-dashboard-demo ./deploy/gcp/dashboard.teardown.example.sh` |
 
 Deploy: see [`docs/cloud/gcp-cloud-run-activation.md`](../cloud/gcp-cloud-run-activation.md)

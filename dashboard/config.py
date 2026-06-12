@@ -34,16 +34,34 @@ class DashboardSettings:
     api_base_url: str = ""
     github_repo_url: str = "https://github.com/dannzapper-cmd/project-3"
     reviewer_guide_path: str = "docs/REVIEWER_DEMO_GUIDE.md"
+    evidence_doc_path: str = "docs/evidence/PR14_CLOUD_RUN_LIVE_DEMO.md"
 
     @property
     def is_cloud_mode(self) -> bool:
         return self.env in _CLOUD_ENVS
 
     @property
+    def show_demo_credentials_hint(self) -> bool:
+        """Show portfolio demo credentials on the login page when safe."""
+
+        if not self.demo_auth_enabled or not self.demo_password:
+            return False
+        explicit = os.getenv("INVFORGE_SHOW_DEMO_CREDENTIALS", "").strip().lower()
+        if explicit in _TRUE_VALUES:
+            return True
+        if explicit in _FALSE_VALUES:
+            return False
+        return self.is_cloud_mode
+
+    @property
     def read_only_banner(self) -> str:
-        return (
-            "Read-only portfolio demo · synthetic data · not production"
-        )
+        return "Read-only portfolio demo · synthetic data · not production"
+
+    @property
+    def mode_label(self) -> str:
+        if self.is_cloud_mode:
+            return "Cloud · fixture-backed read-only demo"
+        return "Local · full pipeline artifacts"
 
     @classmethod
     def from_env(cls) -> "DashboardSettings":

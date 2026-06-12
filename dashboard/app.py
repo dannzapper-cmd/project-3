@@ -131,68 +131,110 @@ def _fetch_api_health(base_url: str) -> dict[str, Any] | None:
         return None
 
 
-def _render_system_flow(settings: DashboardSettings) -> None:
-    st.header("System flow")
-    st.markdown(
-        """
-```mermaid
-flowchart LR
-    subgraph cloud ["Cloud (read-only demo)"]
-        DASH["Streamlit Dashboard"]
-        API["FastAPI AI Ops API"]
-    end
-    subgraph local ["Local only"]
-        INV["InvenTree"]
-        ML["ML / MLOps pipeline"]
-        OBS["Prometheus / Grafana"]
-    end
-    DASH -->|"status links"| API
-    API -.->|"ingestion blocked in cloud"| INV
-    ML -->|"artifacts"| DASH
-```
-"""
-    )
+def _render_how_to_use(settings: DashboardSettings) -> None:
+    st.subheader("How to use this demo")
     if settings.is_cloud_mode:
-        st.caption(
-            "You are viewing the **cloud read-only dashboard**. The full pipeline "
-            f"runs locally via `{CMD_REVIEWER_DEMO}`."
+        st.markdown(
+            "1. Scan **Overview** status cards and sections 1–4 below.\n"
+            "2. Open **Quick links** for the live API docs and local full demo guide.\n"
+            "3. Compare **Cloud vs local** — this page uses bundled fixtures; "
+            f"run `{CMD_REVIEWER_DEMO}` locally for the full pipeline."
         )
     else:
-        st.caption(
-            "Local mode reads artifacts from your workspace. Run "
-            f"`{CMD_DEMO_LOCAL}` to populate them."
+        st.markdown(
+            f"1. If cards show **missing**, run `{CMD_REVIEWER_DEMO}` first.\n"
+            "2. Explore forecast, decision intelligence, and MLOps sections.\n"
+            "3. Optionally start `make observability-api` for `/health` and `/docs`."
         )
 
 
-def _render_reviewer_links(settings: DashboardSettings) -> None:
-    st.header("Reviewer resources")
-    api_url = settings.api_base_url or "<set INVFORGE_API_BASE_URL>"
-    api_docs = (
-        f"{settings.api_base_url}/docs" if settings.api_base_url else api_url
-    )
-    guide = (
-        f"{settings.github_repo_url}/blob/main/{settings.reviewer_guide_path}"
-    )
+def _render_backend_explainer(settings: DashboardSettings) -> None:
+    st.subheader("Cloud vs local backend")
+    if settings.is_cloud_mode:
+        st.success(
+            "**Cloud demo (this page):** live read-only Streamlit surface with "
+            "**bundled synthetic fixtures** (~116 KB, seed 42). No ML training, "
+            "no live MLflow/ZenML/InvenTree on cold start."
+        )
+        st.info(
+            "**Local full demo:** run the complete synthetic pipeline "
+            f"(`{CMD_REVIEWER_DEMO}`) — data generation, ML training, decision "
+            "intelligence, MLOps loop — then `make dashboard` reads generated "
+            "artifacts from your machine."
+        )
+    else:
+        st.success(
+            "**Local mode (this page):** reading **generated workspace artifacts** "
+            "from your machine after the synthetic pipeline."
+        )
+        st.info(
+            "**Cloud demo:** live fixture-backed dashboard at the portfolio URL — "
+            "safe reviewer surface without running training in Cloud Run."
+        )
+
+
+def _render_quick_links(settings: DashboardSettings) -> None:
+    st.subheader("Quick links")
+    api_base = settings.api_base_url
     repo = settings.github_repo_url
+    guide = f"{repo}/blob/main/{settings.reviewer_guide_path}"
+    evidence = f"{repo}/blob/main/{settings.evidence_doc_path}"
     scenario = f"{repo}/blob/main/examples/demo-scenario/scenario.yaml"
     sample_api = f"{repo}/blob/main/examples/api/forecast_request.json"
 
-    st.markdown(
-        f"""
-| Resource | Link |
-|----------|------|
-| Live API docs | [{api_docs}]({api_docs}) |
-| GitHub README | [{repo}]({repo}) |
-| Reviewer demo guide | [{guide}]({guide}) |
-| Local demo command | `{CMD_REVIEWER_DEMO}` |
-| Sample scenario | [`examples/demo-scenario/scenario.yaml`]({scenario}) |
-| Sample API JSON | [`examples/api/forecast_request.json`]({sample_api}) |
-"""
-    )
+    if api_base:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.link_button(
+                "Live API docs", f"{api_base}/docs", use_container_width=True
+            )
+        with c2:
+            st.link_button(
+                "API health JSON", f"{api_base}/health", use_container_width=True
+            )
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.link_button("GitHub repo", repo, use_container_width=True)
+    with c4:
+        st.link_button("Reviewer guide", guide, use_container_width=True)
+
+    c5, c6 = st.columns(2)
+    with c5:
+        st.link_button("Sample scenario YAML", scenario, use_container_width=True)
+    with c6:
+        st.link_button("Technical evidence", evidence, use_container_width=True)
+
+    st.caption(f"Sample API JSON: `{sample_api}`")
+
+
+def _render_system_flow(settings: DashboardSettings) -> None:
+    st.subheader("System flow")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Cloud (live read-only demo)**")
+        st.markdown(
+            "- Streamlit dashboard *(this page in cloud mode)*\n"
+            "- FastAPI AI Ops API *(read-only endpoints)*\n"
+            "- Mutations blocked · no public MLflow/ZenML/InvenTree"
+        )
+    with right:
+        st.markdown("**Local only (full pipeline)**")
+        st.markdown(
+            "- Synthetic data → ML training → decision intel → MLOps loop\n"
+            "- Dashboard reads generated artifacts\n"
+            "- Optional: InvenTree, Prometheus/Grafana, kind/k8s"
+        )
+    if settings.is_cloud_mode:
+        st.caption(
+            f"Full pipeline locally: `{CMD_REVIEWER_DEMO}` then `make dashboard`."
+        )
+    else:
+        st.caption(f"Populate artifacts: `{CMD_DEMO_LOCAL}`.")
 
 
 def _render_observability_summary(settings: DashboardSettings) -> None:
-    st.header("Observability & API health")
+    st.header("5. Observability & API health")
     if not settings.api_base_url:
         st.info(
             "Set `INVFORGE_API_BASE_URL` to show live API health (cloud dashboard)."
@@ -207,17 +249,24 @@ def _render_observability_summary(settings: DashboardSettings) -> None:
     st.success("API health endpoint reachable.")
     st.json(health)
     base = settings.api_base_url
-    st.markdown(
-        f"- Metrics: [`{base}/metrics`]({base}/metrics)\n"
-        f"- OpenAPI: [`{base}/docs`]({base}/docs)"
-    )
+    c1, c2 = st.columns(2)
+    with c1:
+        st.link_button("Open /metrics", f"{base}/metrics", use_container_width=True)
+    with c2:
+        st.link_button("Open /docs", f"{base}/docs", use_container_width=True)
 
 
 def _render_security_posture(settings: DashboardSettings) -> None:
-    st.header("Security & read-only posture")
-    mode = "Cloud read-only demo" if settings.is_cloud_mode else "Local"
+    st.header("6. Security & read-only posture")
+    if settings.is_cloud_mode:
+        mode = "Cloud fixture-backed demo"
+        data_source = "Bundled fixtures (cloud)"
+    else:
+        mode = "Local full artifacts"
+        data_source = "Generated local artifacts"
     rows = [
         ("Dashboard mode", mode),
+        ("Data source", data_source),
         ("Demo auth gate", "Enabled" if settings.demo_auth_enabled else "Disabled"),
         ("Mutation endpoints", "Blocked in cloud/demo API mode"),
         ("InvenTree admin", "Local only — not exposed publicly"),
@@ -234,13 +283,17 @@ def main() -> None:
         return
 
     st.title("InvForge — AI Operations Control Tower")
+    st.caption(settings.mode_label)
 
     st.warning(f"⚠️ **{settings.read_only_banner}**")
 
+    _render_how_to_use(settings)
+    _render_quick_links(settings)
+    _render_backend_explainer(settings)
+
     st.markdown(
-        "Streamlit dashboard for synthetic demand forecasting, decision "
-        "intelligence, and MLOps loop artifacts. **Read-only** — pipelines are "
-        "never triggered from this UI."
+        "Read-only Streamlit viewer for synthetic demand forecasting, decision "
+        "intelligence, and MLOps artifacts. **No pipelines run from this UI.**"
     )
 
     if settings.is_cloud_mode:
@@ -270,15 +323,17 @@ def main() -> None:
 
     # --- Overview ---
     st.header("1. Overview")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        _status_badge("Data", overview["data"])
-    with c2:
-        _status_badge("ML forecast", overview["ml_forecast"])
-    with c3:
-        _status_badge("Decision intel", overview["decision"])
-    with c4:
-        _status_badge("MLOps", overview["mlops"])
+    if settings.is_cloud_mode:
+        r1a, r1b = st.columns(2)
+        r2a, r2b = st.columns(2)
+        cols = (r1a, r1b, r2a, r2b)
+    else:
+        cols = st.columns(4)
+    labels = ("Data", "ML forecast", "Decision intel", "MLOps")
+    keys = ("data", "ml_forecast", "decision", "mlops")
+    for col, label, key in zip(cols, labels, keys, strict=True):
+        with col:
+            _status_badge(label, overview[key])
 
     if synthetic["status"] == "ok":
         syn = synthetic["data"]
@@ -443,9 +498,10 @@ def main() -> None:
         reg_step = steps.get("registry") or {}
         cc_step = steps.get("champion_challenger") or {}
         bento_step = steps.get("bentoml") or {}
-
-        m1, m2, m3, m4 = st.columns(4)
         drift_flag = ev_step.get("dataset_drift_detected")
+
+        m1, m2 = st.columns(2)
+        m3, m4 = st.columns(2)
         with m1:
             if drift_flag is None:
                 st.metric("Drift detected", "Unknown")
@@ -514,7 +570,6 @@ def main() -> None:
 
     _render_observability_summary(settings)
     _render_security_posture(settings)
-    _render_reviewer_links(settings)
 
     st.markdown("---")
     st.caption(

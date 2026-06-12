@@ -33,13 +33,16 @@ evaluate InvForge quickly — browser-only, full local, or advanced profiles.
 
 **After login you should see:**
 
-1. Yellow banner: **Read-only portfolio demo · synthetic data · not production**
-2. **Overview** — status cards for Data, ML forecast, Decision intel, MLOps
-3. **Forecast Performance** — champion/challenger metrics chart
-4. **Decision Intelligence** — top reorder recommendations (synthetic)
-5. **MLOps Status** — drift flag, registry, BentoML packaging summary
-6. **Observability & API health** — live link to cloud API `/health`
-7. **Reviewer resources** — links to API docs, GitHub, sample inputs
+1. Mode label: **Cloud · fixture-backed read-only demo**
+2. Yellow banner: **Read-only portfolio demo · synthetic data · not production**
+3. **How to use this demo** — numbered steps
+4. **Quick links** — clickable buttons (API docs, GitHub, reviewer guide, evidence)
+5. **Cloud vs local backend** — what is live here vs what runs locally
+6. **Overview** — status cards for Data, ML forecast, Decision intel, MLOps
+7. Sections 2–4 — forecast chart, decision table, MLOps summary
+8. **Observability & API health** — live cloud API health JSON
+
+> **Mobile:** usable for login and first impression; desktop recommended for charts/tables.
 
 **What the cloud dashboard is NOT:**
 
