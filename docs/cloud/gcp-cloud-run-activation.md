@@ -103,9 +103,12 @@ balancer resources.
 
 ## Cost warning
 
-- `minScale: 0` → scale to zero when idle; cold starts on first request
+- `minScale: 0` / `min-instances: 0` → scale to zero when idle; cold starts on first request
+- `max-instances: 1` caps burst cost on the live demo service
 - Charges apply for: request/CPU/memory time, Artifact Registry storage, egress, logs
 - Low-traffic demo may stay near free-tier depending on account eligibility
+- **No GKE, VM, managed DB, Redis, or load balancer** in the default Cloud Run profile
+- Keep a live demo **only during job-search**; run teardown when no longer needed
 - **Verify current GCP pricing before deploying**
 
 ## Secret handling

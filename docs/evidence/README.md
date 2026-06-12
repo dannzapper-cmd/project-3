@@ -4,6 +4,12 @@ This directory holds **local validation evidence** for senior QA passes and fina
 packaging. Timestamped machine logs are **not** committed by default (see
 `.gitignore`).
 
+## PR-15 — Final UX acceptance audit
+
+| Artifact | Purpose |
+|----------|---------|
+| `PR15_FINAL_UX_ACCEPTANCE_AUDIT.md` | 2-minute clarity checklist, commands run, screenshot/live API status, readiness verdict |
+
 ## PR-14 — Live Cloud Run demo
 
 | Artifact | Purpose |

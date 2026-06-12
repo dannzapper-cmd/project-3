@@ -157,16 +157,26 @@ make lineage-down
 
 ## 8. Cloud readiness (~30 s)
 
-Show (do **not** deploy):
+Point to the **live read-only API** (already deployed — do not redeploy):
+
+- [Health](https://invforge-ai-demo-289428962093.us-central1.run.app/health)
+- [OpenAPI docs](https://invforge-ai-demo-289428962093.us-central1.run.app/docs)
+
+```bash
+curl -fsS https://invforge-ai-demo-289428962093.us-central1.run.app/health
+curl -i -X POST https://invforge-ai-demo-289428962093.us-central1.run.app/v1/ingest/inventree  # expect 403
+```
+
+Say: *"Cloud Run hosts only the read-only API — dashboard, MLflow, ZenML, and
+retraining stay local. Mutations are blocked. Keep the service live only during
+job-search; tear down when done. See PR-14 evidence for cost guardrails."*
+
+Optional — show activation templates without deploying:
 
 ```bash
 make deploy-validate
 ls deploy/gcp/ deploy/aws/ deploy/azure/
 ```
-
-Say: *"Cloud Run is the preferred low-cost target for the read-only API.
-Profiles are activation-ready templates — nothing is live until I manually
-deploy with my own credentials. See docs/cloud/ for activation guides."*
 
 Optional container smoke:
 

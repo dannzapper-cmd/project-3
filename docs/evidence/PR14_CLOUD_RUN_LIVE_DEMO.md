@@ -106,11 +106,22 @@ curl -i -X POST "$SERVICE_URL/v1/ingest/inventree"   # expect 403
 | MLflow / ZenML / retraining | No — local only |
 | kind Kubernetes profiles | No — local only |
 
-## Cost warning
+## Cost warning and guardrails
 
 Charges may apply for Cloud Run request/CPU time, Cloud Build minutes, Artifact
 Registry storage, and logs. Low-traffic demo with scale-to-zero can stay
 low-cost, but **watch billing** in the GCP console.
+
+| Guardrail | Setting |
+|-----------|---------|
+| Scale to zero | `min-instances: 0` |
+| Cap burst | `max-instances: 1` |
+| Resources | 512Mi RAM, 1 CPU — no GKE, no VM, no managed DB, no Redis, no load balancer |
+| Artifact Registry | Image storage may incur minor ongoing cost after deploy |
+| Portfolio use | Keep live **only during job-search**; delete when no longer needed |
+
+Teardown command (below) removes the Cloud Run service. Optionally delete the
+Artifact Registry repository if the image is no longer needed.
 
 ## Teardown
 

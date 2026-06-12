@@ -42,10 +42,12 @@ LIMITATIONS = [
     "Cost and policy figures are **simulated backtest diagnostics**, not "
     "real-world savings claims.",
     "MLflow, Evidently, and BentoML artifacts are **local** to this machine.",
-    "This dashboard is **not** production monitoring, alerting, or serving.",
-    "Grafana, Prometheus, and OpenTelemetry are deferred to **PR-07**.",
-    "Cloud deployment profiles are deferred to **PR-10**.",
-    "Kubernetes / Helm are deferred to **PR-11**.",
+    "This dashboard is **local-only** — not cloud-hosted, not production monitoring.",
+    "Observability (Prometheus/Grafana) and Marquez lineage are **optional local "
+    "profiles** — run separately via `make observability-up` or kind stacks.",
+    "The live Cloud Run demo exposes **only** the read-only API — not this "
+    "dashboard, MLflow, or retraining.",
+    "kind Kubernetes profiles are **local evidence** — not managed GKE/EKS/AKS.",
 ]
 
 
