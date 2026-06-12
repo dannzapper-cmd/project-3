@@ -40,6 +40,58 @@ running.
 | **Security** (`security/`) | Audit pipeline, risk scoring, secrets scanning hooks |
 | **Deploy** (`deploy/`) | Docker image, GCP/AWS/Azure templates, kind Helm charts |
 
+## What runs when you call `make demo-local`
+
+`make demo-local` chains the **offline backend pipeline** (no Docker/k8s, no
+long-running servers):
+
+```
+generate-data → validate-data → train-ml → decision-intel → mlops-loop → dashboard-smoke
+```
+
+| Step | Makefile target | Artifacts produced |
+|------|-----------------|-------------------|
+| 1 | `generate-data` | `data/synthetic/output/*.csv` |
+| 2 | `validate-data` | Pandera validation (pass/fail) |
+| 3 | `train-ml` | `mlruns/` experiment runs, model metrics |
+| 4 | `decision-intel` | `artifacts/decision/*.json`, `*.csv` |
+| 5 | `mlops-loop` | `artifacts/mlops/` (Evidently, registry, BentoML) |
+| 6 | `dashboard-smoke` | Loader contract checks (no browser) |
+
+## How the dashboard knows backend/ML work happened
+
+The Streamlit dashboard **never calls training code**. It uses read-only loaders
+(`dashboard/loaders.py`) that check artifact files on disk:
+
+- Section **0. How InvForge Works** — pipeline step cards with artifact paths
+- Sections **1–4** — parse JSON/CSV from `artifacts/` and `mlruns/`
+- Missing artifacts show **Status: missing** with exact `make` commands to fix
+
+If section 0 and Overview cards are green after `make demo-local`, the backend
+pipeline produced real artifacts on this machine.
+
+## What `/health`, Grafana, and Marquez each prove
+
+| Surface | Command | Proves |
+|---------|---------|--------|
+| **`GET /health`** | `make observability-api` | API reads artifact presence/mtime; drift and champion/challenger flags |
+| **Grafana** | `make observability-up` | Local Prometheus scrapes `/metrics`; dev-only dashboards |
+| **Marquez** | `make lineage-up` + `lineage-smoke` | OpenLineage event for `invforge.retraining` job recorded |
+
+None of these replace the dashboard — they are **companion evidence layers**.
+
+## What is deployable publicly vs local-only
+
+| Component | Local | Cloud-deployable |
+|-----------|-------|------------------|
+| AI Operations API (`/health`, `/metrics`, read-only status) | Yes | **Yes** (Docker → Cloud Run / ECS / Container Apps) |
+| Streamlit dashboard | Yes | **No** — requires local artifacts |
+| MLflow, ZenML, retraining | Yes | **No** |
+| InvenTree base stack | Yes (Docker) | **No** — external system |
+| Grafana / Marquez kind profiles | Yes | **No** — local evidence |
+
+See `docs/deployment-contract.md`.
+
 ## API role
 
 The FastAPI app (`api/main.py`) is the **control-plane surface** for operators:

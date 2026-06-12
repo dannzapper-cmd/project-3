@@ -29,3 +29,7 @@ CMD_GENERATE_DATA = 'make UV="uv" generate-data'
 CMD_TRAIN_ML = 'make UV="uv" train-ml'
 CMD_DECISION_INTEL = 'make UV="uv" decision-intel'
 CMD_MLOPS_LOOP = 'make UV="uv" mlops-loop'
+
+MLRUNS_DIR = REPO_ROOT / "mlruns"
+RETRAINING_DIR = REPO_ROOT / "artifacts" / "retraining"
+DEFAULT_PROCESSED_DIR = REPO_ROOT / "data" / "processed"

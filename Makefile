@@ -187,7 +187,7 @@ model-rollback-confirm:
 
 # PR-06 AI Operations Dashboard (read-only artifact visualization).
 dashboard:
-	$(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true
+	PYTHONPATH=. $(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true
 
 dashboard-smoke:
 	$(UV) run --group dashboard python -m dashboard.smoke
