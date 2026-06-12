@@ -1,16 +1,22 @@
-"""Streamlit AI Operations Dashboard (PR-06).
+"""Streamlit AI Operations Dashboard (PR-06 / PR-15).
 
 Read-only visualization of PR-03/04/05 artifacts. Does not run pipelines.
+Cloud mode uses bundled demo fixtures and an optional reviewer login gate.
 """
 
 from __future__ import annotations
 
+import json
+import urllib.error
+import urllib.request
 from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.auth import render_login_gate
+from dashboard.config import DashboardSettings
 from dashboard.loaders import (
     derive_overview_status,
     load_bentoml_build_summary,
@@ -24,8 +30,10 @@ from dashboard.loaders import (
 )
 from dashboard.paths import (
     CMD_DECISION_INTEL,
+    CMD_DEMO_LOCAL,
     CMD_GENERATE_DATA,
     CMD_MLOPS_LOOP,
+    CMD_REVIEWER_DEMO,
     CMD_TRAIN_ML,
 )
 from dashboard.types import LoaderMissing, LoaderOk
@@ -36,22 +44,29 @@ st.set_page_config(
     layout="wide",
 )
 
-LIMITATIONS = [
+LIMITATIONS_LOCAL = [
     "All inputs are **synthetic** (seed 42); no real InvenTree inventory data.",
     "Cost and policy figures are **simulated backtest diagnostics**, not "
     "real-world savings claims.",
     "MLflow, Evidently, and BentoML artifacts are **local** to this machine.",
     "This dashboard is **not** production monitoring, alerting, or serving.",
-    "Grafana, Prometheus, and OpenTelemetry are deferred to **PR-07**.",
-    "Cloud deployment profiles are deferred to **PR-10**.",
-    "Kubernetes / Helm are deferred to **PR-11**.",
+    "Grafana and Prometheus are available locally via `make observability-*`.",
+    "Cloud deploy exposes a **read-only API + dashboard**; training stays local.",
+]
+
+LIMITATIONS_CLOUD = [
+    "All data is **synthetic** (seed 42) from committed demo fixtures.",
+    "Cost metrics are **simulated backtest diagnostics** — not real savings.",
+    "This is a **read-only portfolio demo**; no mutations or admin actions.",
+    "MLflow, ZenML, InvenTree, and retraining remain **local-only**.",
+    "Demo login is a **reviewer gate**, not production authentication.",
 ]
 
 
 def _render_missing(result: LoaderMissing) -> None:
     st.error("Status: **missing**")
     st.write(result["reason"])
-    st.markdown("**Generate artifacts:**")
+    st.markdown("**Generate artifacts (local only):**")
     for command in result["commands"]:
         st.code(command, language="bash")
 
@@ -105,18 +120,135 @@ def _metric_bar_chart(
     return fig
 
 
-def main() -> None:
-    st.title("InvForge — AI Operations Control Tower")
+def _fetch_api_health(base_url: str) -> dict[str, Any] | None:
+    if not base_url:
+        return None
+    url = f"{base_url.rstrip('/')}/health"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return None
+
+
+def _render_system_flow(settings: DashboardSettings) -> None:
+    st.header("System flow")
     st.markdown(
-        "Local Streamlit dashboard for synthetic demand forecasting, decision "
+        """
+```mermaid
+flowchart LR
+    subgraph cloud ["Cloud (read-only demo)"]
+        DASH["Streamlit Dashboard"]
+        API["FastAPI AI Ops API"]
+    end
+    subgraph local ["Local only"]
+        INV["InvenTree"]
+        ML["ML / MLOps pipeline"]
+        OBS["Prometheus / Grafana"]
+    end
+    DASH -->|"status links"| API
+    API -.->|"ingestion blocked in cloud"| INV
+    ML -->|"artifacts"| DASH
+```
+"""
+    )
+    if settings.is_cloud_mode:
+        st.caption(
+            "You are viewing the **cloud read-only dashboard**. The full pipeline "
+            f"runs locally via `{CMD_REVIEWER_DEMO}`."
+        )
+    else:
+        st.caption(
+            "Local mode reads artifacts from your workspace. Run "
+            f"`{CMD_DEMO_LOCAL}` to populate them."
+        )
+
+
+def _render_reviewer_links(settings: DashboardSettings) -> None:
+    st.header("Reviewer resources")
+    api_url = settings.api_base_url or "<set INVFORGE_API_BASE_URL>"
+    api_docs = (
+        f"{settings.api_base_url}/docs" if settings.api_base_url else api_url
+    )
+    guide = (
+        f"{settings.github_repo_url}/blob/main/{settings.reviewer_guide_path}"
+    )
+    repo = settings.github_repo_url
+    scenario = f"{repo}/blob/main/examples/demo-scenario/scenario.yaml"
+    sample_api = f"{repo}/blob/main/examples/api/forecast_request.json"
+
+    st.markdown(
+        f"""
+| Resource | Link |
+|----------|------|
+| Live API docs | [{api_docs}]({api_docs}) |
+| GitHub README | [{repo}]({repo}) |
+| Reviewer demo guide | [{guide}]({guide}) |
+| Local demo command | `{CMD_REVIEWER_DEMO}` |
+| Sample scenario | [`examples/demo-scenario/scenario.yaml`]({scenario}) |
+| Sample API JSON | [`examples/api/forecast_request.json`]({sample_api}) |
+"""
+    )
+
+
+def _render_observability_summary(settings: DashboardSettings) -> None:
+    st.header("Observability & API health")
+    if not settings.api_base_url:
+        st.info(
+            "Set `INVFORGE_API_BASE_URL` to show live API health (cloud dashboard)."
+        )
+        return
+
+    health = _fetch_api_health(settings.api_base_url)
+    if health is None:
+        st.warning(f"Could not reach `{settings.api_base_url}/health`.")
+        return
+
+    st.success("API health endpoint reachable.")
+    st.json(health)
+    base = settings.api_base_url
+    st.markdown(
+        f"- Metrics: [`{base}/metrics`]({base}/metrics)\n"
+        f"- OpenAPI: [`{base}/docs`]({base}/docs)"
+    )
+
+
+def _render_security_posture(settings: DashboardSettings) -> None:
+    st.header("Security & read-only posture")
+    mode = "Cloud read-only demo" if settings.is_cloud_mode else "Local"
+    rows = [
+        ("Dashboard mode", mode),
+        ("Demo auth gate", "Enabled" if settings.demo_auth_enabled else "Disabled"),
+        ("Mutation endpoints", "Blocked in cloud/demo API mode"),
+        ("InvenTree admin", "Local only — not exposed publicly"),
+        ("MLflow / ZenML", "Local only — not exposed publicly"),
+        ("Data classification", "Synthetic seed-42 fixtures only"),
+    ]
+    st.table({"Control": [r[0] for r in rows], "Status": [r[1] for r in rows]})
+
+
+def main() -> None:
+    settings = DashboardSettings.from_env()
+
+    if not render_login_gate(settings):
+        return
+
+    st.title("InvForge — AI Operations Control Tower")
+
+    st.warning(f"⚠️ **{settings.read_only_banner}**")
+
+    st.markdown(
+        "Streamlit dashboard for synthetic demand forecasting, decision "
         "intelligence, and MLOps loop artifacts. **Read-only** — pipelines are "
         "never triggered from this UI."
     )
 
-    st.warning(
-        "⚠️ **Synthetic data only.** No real inventory data. No real-world savings "
-        "claims. Local artifacts only."
-    )
+    if settings.is_cloud_mode:
+        for item in LIMITATIONS_CLOUD:
+            st.markdown(f"- {item}")
+    else:
+        for item in LIMITATIONS_LOCAL:
+            st.markdown(f"- {item}")
 
     synthetic = load_synthetic_data_status()
     comparison = load_champion_challenger_comparison()
@@ -133,6 +265,8 @@ def main() -> None:
         decision_summary=decision_summary,
         mlops_summary=mlops_summary,
     )
+
+    _render_system_flow(settings)
 
     # --- Overview ---
     st.header("1. Overview")
@@ -155,7 +289,7 @@ def main() -> None:
         if syn["files_missing"]:
             st.warning(
                 f"Missing markers: {', '.join(syn['files_missing'])}. "
-                f"Run `{CMD_GENERATE_DATA}`."
+                f"Run `{CMD_GENERATE_DATA}` (local) or use bundled cloud fixtures."
             )
     else:
         _render_missing(synthetic)
@@ -378,16 +512,16 @@ def main() -> None:
     else:
         _render_missing(mlops_summary)
 
-    # --- Limitations ---
-    st.header("5. Limitations")
-    for item in LIMITATIONS:
-        st.markdown(f"- {item}")
+    _render_observability_summary(settings)
+    _render_security_posture(settings)
+    _render_reviewer_links(settings)
 
     st.markdown("---")
     st.caption(
-        "Generate artifacts: "
+        "Local artifact chain: "
         f"`{CMD_GENERATE_DATA}` → `{CMD_TRAIN_ML}` → "
         f"`{CMD_DECISION_INTEL}` → `{CMD_MLOPS_LOOP}` · "
+        f"One-command reviewer path: `{CMD_REVIEWER_DEMO}` · "
         'Launch dashboard: `make UV="uv" dashboard`'
     )
 

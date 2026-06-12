@@ -2,13 +2,38 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-DEFAULT_SYNTHETIC_DIR = REPO_ROOT / "data" / "synthetic" / "output"
-DEFAULT_DECISION_DIR = REPO_ROOT / "artifacts" / "decision"
-DEFAULT_MLOPS_DIR = REPO_ROOT / "artifacts" / "mlops"
+
+def _fixtures_root() -> Path | None:
+    raw = os.getenv("INVFORGE_DASHBOARD_FIXTURES_DIR", "").strip()
+    if raw:
+        return Path(raw)
+    env = os.getenv("INVFORGE_ENV", "local").strip().lower()
+    if env in {"demo", "cloud"}:
+        return Path(__file__).resolve().parent / "demo_fixtures"
+    return None
+
+
+def _artifact_root(name: str, default: Path) -> Path:
+    root = _fixtures_root()
+    if root is None:
+        return default
+    return root / name
+
+
+DEFAULT_SYNTHETIC_DIR = _artifact_root(
+    "synthetic/output", REPO_ROOT / "data" / "synthetic" / "output"
+)
+DEFAULT_DECISION_DIR = _artifact_root(
+    "decision", REPO_ROOT / "artifacts" / "decision"
+)
+DEFAULT_MLOPS_DIR = _artifact_root(
+    "mlops", REPO_ROOT / "artifacts" / "mlops"
+)
 
 DECISION_SUMMARY = DEFAULT_DECISION_DIR / "decision_summary.json"
 DECISION_RECOMMENDATIONS = DEFAULT_DECISION_DIR / "decision_recommendations.csv"
@@ -29,3 +54,5 @@ CMD_GENERATE_DATA = 'make UV="uv" generate-data'
 CMD_TRAIN_ML = 'make UV="uv" train-ml'
 CMD_DECISION_INTEL = 'make UV="uv" decision-intel'
 CMD_MLOPS_LOOP = 'make UV="uv" mlops-loop'
+CMD_DEMO_LOCAL = 'make UV="uv" demo-local'
+CMD_REVIEWER_DEMO = 'make UV="uv" reviewer-demo'

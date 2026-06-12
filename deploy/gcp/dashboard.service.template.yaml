@@ -1,0 +1,65 @@
+# InvForge AI Operations Dashboard — Google Cloud Run service template (PR-15).
+#
+# TEMPLATE ONLY — replace placeholders before deploying.
+# Deploys the Streamlit read-only dashboard as a SEPARATE service from the API.
+#
+# Apply with deploy/gcp/dashboard.deploy.example.sh (see deploy/gcp/README.md).
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: SERVICE_NAME
+  labels:
+    app: invforge-dashboard
+    component: ai-operations-dashboard
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+    spec:
+      serviceAccountName: SA_EMAIL
+      containerConcurrency: 40
+      timeoutSeconds: 300
+      containers:
+        - image: IMAGE_URI
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            - name: INVFORGE_ENV
+              value: "cloud"
+            - name: INVFORGE_DEMO_AUTH_ENABLED
+              value: "true"
+            - name: INVFORGE_DEMO_USER
+              value: "reviewer"
+            # Set via Secret Manager in production-like deploys. For portfolio
+            # demo, a documented public reviewer password is acceptable.
+            - name: INVFORGE_DEMO_PASSWORD
+              value: "DEMO_PASSWORD_PLACEHOLDER"
+            - name: INVFORGE_DASHBOARD_FIXTURES_DIR
+              value: "/app/dashboard/demo_fixtures"
+            - name: INVFORGE_API_BASE_URL
+              value: "API_BASE_URL_PLACEHOLDER"
+            - name: INVFORGE_GITHUB_REPO_URL
+              value: "https://github.com/dannzapper-cmd/project-3"
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 5

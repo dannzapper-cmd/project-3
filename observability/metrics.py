@@ -44,17 +44,16 @@ PR_STAGE = "PR-07"
 # (PATCH 7). -1 always means "value could not be determined safely".
 UNKNOWN = -1.0
 
-# Low-cardinality endpoint allowlist for request metrics. Anything else is
-# normalized to "other" to avoid unbounded label cardinality.
-KNOWN_ENDPOINTS: frozenset[str] = frozenset(
-    {
-        "/health",
-        "/metrics",
-        "/v1/inventory/status",
-        "/v1/ingest/inventree",
-        "/v1/data/summary",
-    }
-)
+# Low-cardinality endpoint allowlist for request metrics. HTTP paths are mapped
+# to slash-free label tokens so Prometheus labels never look like file paths.
+ENDPOINT_LABEL_MAP: dict[str, str] = {
+    "/health": "health",
+    "/metrics": "metrics",
+    "/v1/inventory/status": "v1_inventory_status",
+    "/v1/ingest/inventree": "v1_ingest_inventree",
+    "/v1/data/summary": "v1_data_summary",
+}
+KNOWN_ENDPOINTS: frozenset[str] = frozenset(ENDPOINT_LABEL_MAP)
 
 _logger = get_logger("metrics")
 
@@ -144,9 +143,9 @@ def init_service_info(
 
 
 def normalize_endpoint(endpoint: str) -> str:
-    """Map an endpoint to a low-cardinality label value."""
+    """Map an HTTP path to a low-cardinality, path-free label value."""
 
-    return endpoint if endpoint in KNOWN_ENDPOINTS else "other"
+    return ENDPOINT_LABEL_MAP.get(endpoint, "other")
 
 
 def record_request(

@@ -4,9 +4,56 @@
 
 InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It adds demand forecasting, stockout prediction, MLOps, observability, and decision intelligence **without modifying the InvenTree core**.
 
-> **Status:** PR-02 — data pipeline foundation (FastAPI sidecar, read-only ingestion, Pandera validation, DVC, Feast skeleton).
+> **Status:** PR-15 — live reviewer dashboard + full local demo UX.
 
-## Architecture
+## Try InvForge
+
+Choose your reviewer path:
+
+| Path | What | Time |
+|------|------|------|
+| **A. Live Cloud Dashboard** | Read-only Streamlit demo (live) | ~5 min |
+| **B. Live API Demo** | Read-only FastAPI + OpenAPI | ~5 min |
+| **C. Full Local Demo** | Complete synthetic ML/MLOps pipeline + dashboard | ~15–20 min |
+| **D. Technical Evidence** | Deploy profiles, security, ADRs | As needed |
+
+### A. Live Cloud Dashboard
+
+| | |
+|---|---|
+| URL | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app |
+| Login | Username `reviewer` · password `invforge-demo` (reviewer gate only) |
+| Banner | Read-only portfolio demo · synthetic data · not production |
+
+> Reviewer gate only — not production security. Unlocks synthetic read-only content.
+
+### B. Live API Demo
+
+| | |
+|---|---|
+| OpenAPI | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/docs |
+| Health | https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app/health |
+
+Read-only cloud surface. `POST /v1/ingest/inventree` returns **403** in cloud mode.
+
+### C. Full Local Demo
+
+```bash
+uv sync --group dev --group pipeline --group ml --group mlops --group dashboard --group observability
+make reviewer-demo    # synthetic pipeline (generate → train → intel → mlops)
+make dashboard        # http://localhost:8501
+# optional: make observability-api  →  http://localhost:8001/docs
+```
+
+Sample inputs: [`examples/demo-scenario/scenario.yaml`](examples/demo-scenario/scenario.yaml) · [`examples/api/forecast_request.json`](examples/api/forecast_request.json)
+
+**Guide:** [`docs/REVIEWER_DEMO_GUIDE.md`](docs/REVIEWER_DEMO_GUIDE.md)
+
+### D. Advanced Technical Profiles
+
+Local-only: InvenTree (`make docker-up`), observability (`make observability-up`), k8s (`make k8s-up`). See the [Makefile commands](#makefile-commands) table.
+
+---
 
 ```mermaid
 flowchart TB
@@ -239,8 +286,12 @@ Kubernetes).
 | `make train-ml` | Train PR-03 demand forecast baselines |
 | `make decision-intel` | Generate PR-04 inventory recommendations |
 | `make mlops-loop` | Run PR-05 local MLOps loop (drift, registry, champ/chal, BentoML) |
+| `make demo-local` | Run full local synthetic pipeline (generate → train → intel → mlops) |
+| `make reviewer-demo` | demo-local + printed reviewer next steps |
 | `make dashboard` | Launch PR-06 Streamlit AI Operations dashboard |
 | `make dashboard-smoke` | Non-interactive dashboard loader smoke check |
+| `make docker-build-dashboard` | Build Cloud Run dashboard image (`Dockerfile.dashboard`) |
+| `make dashboard-docker-smoke` | Build+run dashboard container; verify auth gate |
 | `make deploy-validate` | Validate PR-10 deploy profiles/templates (offline) |
 | `make deploy-smoke` | Read-only smoke check (`BASE_URL=...`) against a running API |
 | `make docker-build-ai` | Build the deployable AI Operations Layer image |

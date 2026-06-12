@@ -22,6 +22,16 @@ Optional dependency install:
 uv sync --group dev --group ml --group mlops --group dashboard
 ```
 
+## Cloud demo mode (PR-15)
+
+The dashboard can deploy read-only to Cloud Run via `Dockerfile.dashboard`:
+
+- Bundled fixtures: `dashboard/demo_fixtures/` (~116 KB, synthetic seed 42)
+- Reviewer login gate: `INVFORGE_DEMO_AUTH_ENABLED`, `INVFORGE_DEMO_USER`, `INVFORGE_DEMO_PASSWORD`
+- Live URL: see README **Try InvForge** section
+
+Local mode unchanged — reads workspace artifacts from `make reviewer-demo`.
+
 ## Launch the dashboard
 
 ```bash

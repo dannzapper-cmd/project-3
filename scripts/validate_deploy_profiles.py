@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -119,8 +120,58 @@ def _validate_json(failures: list[str], path: Path) -> None:
         _fail(failures, f"{path}: invalid JSON ({exc}).")
 
 
+def _is_helm_template(path: Path) -> bool:
+    """Helm ``templates/`` files are Go templates, not standalone YAML."""
+
+    parts = path.parts
+    return "helm" in parts and "templates" in parts and path.suffix in {
+        ".yaml",
+        ".yml",
+    }
+
+
+def _validate_helm_chart(failures: list[str]) -> None:
+    """Render the local Helm chart and validate the output YAML."""
+
+    chart = DEPLOY_DIR / "k8s" / "helm" / "invforge"
+    if not chart.is_dir():
+        return
+    if not _YAML:
+        return
+    helm = subprocess.run(["helm", "version"], capture_output=True, text=True)
+    if helm.returncode != 0:
+        print("WARNING: helm not available; Helm chart render check skipped.")
+        return
+    values = [chart / "values.yaml", chart / "values-local.yaml"]
+    cmd = [
+        "helm",
+        "template",
+        "invforge-validate",
+        str(chart),
+        "-f",
+        str(values[0]),
+        "-f",
+        str(values[1]),
+        "-n",
+        "invforge-ai",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        _fail(
+            failures,
+            f"helm template failed for {chart}:\n{result.stderr.strip()}",
+        )
+        return
+    try:
+        list(yaml.safe_load_all(result.stdout))  # type: ignore[union-attr]
+    except yaml.YAMLError as exc:  # type: ignore[union-attr]
+        _fail(failures, f"helm template output for {chart} is invalid YAML ({exc}).")
+
+
 def _validate_yaml(failures: list[str], path: Path) -> None:
     if not _YAML:
+        return
+    if _is_helm_template(path):
         return
     try:
         list(yaml.safe_load_all(path.read_text(encoding="utf-8")))
@@ -215,6 +266,7 @@ def main() -> int:
         _validate_readme(failures, provider)
 
     _validate_dockerignore(failures)
+    _validate_helm_chart(failures)
 
     if not _YAML:
         print("WARNING: PyYAML not available; YAML syntax checks were skipped.")

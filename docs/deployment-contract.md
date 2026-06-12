@@ -20,7 +20,9 @@ read-only **demo/cloud** service.
 - **MLflow** local tracking/registry UI/server (`mlruns/`).
 - **ZenML** local stack/server.
 - **Retraining** mutation path as a public endpoint.
-- **Streamlit dashboard** (local artifact viewer; see §6).
+- **Streamlit dashboard** — separate Cloud Run profile in PR-15
+  (`Dockerfile.dashboard`); read-only with bundled synthetic fixtures and
+  optional reviewer login gate. Not in the API container image.
 - **Security-sensitive** operations / audit-write paths.
 - Large/ephemeral local file-store artifacts (`mlruns/`, `artifacts/`).
 - **Kubernetes / Helm / Senior Edition** — deferred to PR-11.
@@ -34,10 +36,10 @@ read-only **demo/cloud** service.
    fresh container with no artifacts, **demo/cloud mode returns HTTP 200 from
    `/health`** while still reporting true artifact status in the payload. → The
    service is deployable with no bundled artifacts.
-2. **Can the dashboard start without live ML inference calls?** The Streamlit
-   dashboard only reads PR-03/04/05 artifacts and triggers no pipelines, but it
-   provides no value without those local artifacts and is not part of the cloud
-   surface. → **Documented local-only; not in the primary cloud deploy surface.**
+2. **Can the dashboard start without live ML inference calls?** **Yes** for
+   cloud demo mode: PR-15 bundles lightweight committed fixtures under
+   `dashboard/demo_fixtures/` and never trains on cold start. Local mode still
+   reads workspace artifacts from `make reviewer-demo`.
 3. **Endpoint classification** — see §4.
 4. **InvenTree is not part of the PR-10 cloud deploy surface.** Not
    containerized or deployed here.
@@ -91,7 +93,8 @@ Defaults are derived from `INVFORGE_ENV`; each flag can be explicitly overridden
 
 ## 6. Operations that remain local-only
 
-- The Streamlit dashboard (`make dashboard`).
+- The Streamlit dashboard (`make dashboard`) — also deployable read-only via
+  `Dockerfile.dashboard` (PR-15) with bundled demo fixtures.
 - Training / decision intelligence / MLOps loop / retraining (`make train-ml`,
   `make mlops-loop`, `make retrain*`).
 - MLflow tracking/registry and ZenML stack (local SQLite/file stores).
@@ -112,8 +115,9 @@ files are changed.
 ## 8. Which services are safe for public/demo deployment
 
 Public/demo-deployable: the AI Operations API running in `cloud`/`demo` mode
-(read-only SAFE endpoints, mutations blocked, health 200). Optionally bundled or
-sample artifacts may be added later, but are not required.
+(read-only SAFE endpoints, mutations blocked, health 200). The Streamlit
+dashboard (PR-15) is deployable separately with bundled synthetic fixtures and
+a reviewer login gate — no ML training on cold start.
 
 Not publicly deployed in PR-10: InvenTree, MLflow server, ZenML server, the
 retraining mutation path, security-sensitive operations, and large local

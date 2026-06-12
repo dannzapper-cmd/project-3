@@ -151,7 +151,20 @@ def test_metrics_have_no_path_label_values(tmp_path):
         comparison_path=tmp_path / "comparison.json",
         bentoml_path=tmp_path / "bento.json",
     )
+    # Simulate API traffic so request metrics are populated too.
+    metrics_mod.record_request("GET", "/health", 200, 0.01)
+    metrics_mod.record_request("GET", "/v1/inventory/status", 200, 0.02)
     assert metrics_mod.assert_no_path_label_values() == []
+
+
+def test_normalize_endpoint_uses_path_free_labels():
+    from observability.metrics import ENDPOINT_LABEL_MAP, normalize_endpoint
+
+    for path, label in ENDPOINT_LABEL_MAP.items():
+        assert normalize_endpoint(path) == label
+        assert "/" not in label
+        assert "\\" not in label
+    assert normalize_endpoint("/unknown/route") == "other"
 
 
 def test_metrics_render_returns_prometheus_bytes():

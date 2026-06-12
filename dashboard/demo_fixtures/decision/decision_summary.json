@@ -1,0 +1,401 @@
+{
+  "artifacts": {
+    "recommendations_csv": "artifacts/decision/decision_recommendations.csv",
+    "summary_json": "artifacts/decision/decision_summary.json"
+  },
+  "assumptions": {
+    "annual_holding_cost_per_unit": "unit_cost * 0.2",
+    "lead_time": "fixed; demand variance only in safety stock",
+    "order_cost_usd": 50.0,
+    "overstock_cost_per_unit": "unit_cost * 0.2 / 365",
+    "understock_cost_per_unit": "unit_cost * 1.0"
+  },
+  "backtest_rows": 10200,
+  "cost_metrics": {
+    "baseline_count": 4,
+    "baseline_policies": [
+      "lag_7",
+      "moving_average_28",
+      "moving_average_7",
+      "statsforecast"
+    ],
+    "baseline_total_costs": {
+      "lag_7": 5396607.35154926,
+      "moving_average_28": 4744925.551351586,
+      "moving_average_7": 4856559.255094152,
+      "statsforecast": 4556496.704436023
+    },
+    "best_baseline": "statsforecast",
+    "best_baseline_total_cost": 4556496.704436023,
+    "cost_reduction_pct": 77.57662125859031,
+    "cost_reduction_pct_by_baseline": {
+      "lag_7": 81.06735497289377,
+      "moving_average_28": 78.46709074108645,
+      "moving_average_7": 78.96204988534146,
+      "statsforecast": 77.57662125859031
+    },
+    "cost_reduction_vs_best_baseline_pct": 77.57662125859031,
+    "lag_7_cost_reduction_pct": 81.06735497289377,
+    "median_selected_quantile_alpha": 0.9,
+    "naive_total_cost": 5396607.35154926,
+    "optimized_cost_lt_best_baseline": true,
+    "optimized_total_cost": 1021720.5133755404,
+    "selected_pinball_loss": 0.23728445895390432,
+    "sensitivity_by_understock_to_overstock_ratio": {
+      "high": {
+        "baseline_total_costs": {
+          "lag_7": 298529.46490131505,
+          "moving_average_28": 262467.4055763425,
+          "moving_average_7": 268636.9388790842,
+          "statsforecast": 251965.24390923738
+        },
+        "best_baseline": "statsforecast",
+        "best_baseline_total_cost": 251965.24390923738,
+        "cost_reduction_pct_by_baseline": {
+          "lag_7": 78.30178786782554,
+          "moving_average_28": 75.32053306615563,
+          "moving_average_7": 75.88732329901634,
+          "statsforecast": 74.29186836789839
+        },
+        "cost_reduction_vs_best_baseline_pct": 74.29186836789839,
+        "median_selected_quantile_alpha": 0.9,
+        "optimized_cost_lt_best_baseline": true,
+        "optimized_total_cost": 64775.55657133261,
+        "understock_to_overstock_ratio": 100.0
+      },
+      "low": {
+        "baseline_total_costs": {
+          "lag_7": 17765.755201863016,
+          "moving_average_28": 15607.39175103914,
+          "moving_average_7": 15968.753348399217,
+          "statsforecast": 14904.091010660788
+        },
+        "best_baseline": "statsforecast",
+        "best_baseline_total_cost": 14904.091010660788,
+        "cost_reduction_pct_by_baseline": {
+          "lag_7": 32.036437672036456,
+          "moving_average_28": 22.637681540557896,
+          "moving_average_7": 24.388336107264283,
+          "statsforecast": 18.987074750046943
+        },
+        "cost_reduction_vs_best_baseline_pct": 18.987074750046943,
+        "median_selected_quantile_alpha": 0.9,
+        "optimized_cost_lt_best_baseline": true,
+        "optimized_total_cost": 12074.240109651597,
+        "understock_to_overstock_ratio": 5.0
+      },
+      "medium": {
+        "baseline_total_costs": {
+          "lag_7": 62096.867259671235,
+          "moving_average_28": 54585.28867082387,
+          "moving_average_7": 55863.73001113895,
+          "statsforecast": 52334.79936306762
+        },
+        "best_baseline": "statsforecast",
+        "best_baseline_total_cost": 52334.79936306762,
+        "cost_reduction_pct_by_baseline": {
+          "lag_7": 67.15534695443957,
+          "moving_average_28": 62.63553587378438,
+          "moving_average_7": 63.49062155438874,
+          "statsforecast": 61.0287975652502
+        },
+        "cost_reduction_vs_best_baseline_pct": 61.0287975652502,
+        "median_selected_quantile_alpha": 0.9,
+        "optimized_cost_lt_best_baseline": true,
+        "optimized_total_cost": 20395.50060360123,
+        "understock_to_overstock_ratio": 20.0
+      }
+    },
+    "warnings": [
+      "large synthetic improvement; sensitive to baseline and cost assumptions"
+    ]
+  },
+  "data_source": "synthetic",
+  "interval_metrics": {
+    "average_interval_width": 7.88056397601906,
+    "calibrated_empirical": {
+      "average_width": 7.88056397601906,
+      "by_demand_pattern": {
+        "intermittent": {
+          "average_width": 8.915781297330692,
+          "coverage": 0.8882428940568475,
+          "rows": 1548
+        },
+        "regular": {
+          "average_width": 7.4368994097426455,
+          "coverage": 0.9050387596899225,
+          "rows": 3612
+        }
+      },
+      "calibration_period": "2024-10-07 to 2024-11-17",
+      "calibration_rows": 5040,
+      "calibration_width_by_demand_pattern": {
+        "intermittent": 8.849808612440944,
+        "regular": 3.8416917397904005
+      },
+      "coverage": 0.9,
+      "coverage_width_tradeoff_notes": "Residual widths are estimated on the first temporal half of the holdout and evaluated on the later half. Wider intervals improve coverage but reduce sharpness; metrics remain synthetic.",
+      "enabled": true,
+      "evaluation_period": "2024-11-18 to 2024-12-30",
+      "evaluation_rows": 5160,
+      "method": "split_empirical_abs_residual_by_demand_pattern",
+      "nominal_coverage_target": 0.9,
+      "overall_calibration_width": 4.102069953475491,
+      "rows": 5160
+    },
+    "coverage_width_tradeoff_notes": "Residual widths are estimated on the first temporal half of the holdout and evaluated on the later half. Wider intervals improve coverage but reduce sharpness; metrics remain synthetic.",
+    "lightgbm_quantile_reference": {
+      "average_width": 6.249333794940544,
+      "by_demand_pattern": {
+        "intermittent": {
+          "average_width": 8.678410524379485,
+          "coverage": 0.8294117647058824,
+          "rows": 3060
+        },
+        "regular": {
+          "average_width": 5.208300910895283,
+          "coverage": 0.780672268907563,
+          "rows": 7140
+        }
+      },
+      "coverage": 0.7952941176470588,
+      "method": "lightgbm_quantile_p10_p90",
+      "nominal_coverage_target": 0.8,
+      "rows": 10200
+    },
+    "nominal_coverage_target": 0.9,
+    "realized_coverage_by_demand_pattern": {
+      "intermittent": {
+        "average_width": 8.915781297330692,
+        "coverage": 0.8882428940568475,
+        "rows": 1548
+      },
+      "regular": {
+        "average_width": 7.4368994097426455,
+        "coverage": 0.9050387596899225,
+        "rows": 3612
+      }
+    },
+    "realized_coverage_overall": 0.9
+  },
+  "limitations": [
+    "synthetic data only",
+    "simulated cost backtest only",
+    "not a production savings claim"
+  ],
+  "policy_optimization": {
+    "calibrated_interval_reference": {
+      "average_width": 7.88056397601906,
+      "coverage": 0.9,
+      "nominal_coverage_target": 0.9
+    },
+    "calibration_metrics_by_demand_pattern": {
+      "intermittent": {
+        "calibration_rows": 1512,
+        "objective_cost": 16672.720056006325,
+        "scenario_costs": {
+          "high": 38714.86517240073,
+          "low": 2817.6574114155546,
+          "medium": 8485.637584202686
+        }
+      },
+      "regular": {
+        "calibration_rows": 3528,
+        "objective_cost": 7806.639996028069,
+        "scenario_costs": {
+          "high": 15335.477789281524,
+          "low": 3074.2276688401826,
+          "medium": 5010.214529962499
+        }
+      }
+    },
+    "candidate_grid": {
+      "order_quantity_multiplier": [
+        0.5,
+        1.0,
+        1.5,
+        2.0
+      ],
+      "safety_stock_multiplier": [
+        0.75,
+        1.0,
+        1.25,
+        1.5
+      ],
+      "service_level": [
+        0.85,
+        0.9,
+        0.95,
+        0.97
+      ]
+    },
+    "enabled": true,
+    "evaluation": {
+      "high": {
+        "best_baseline": "statsforecast",
+        "best_baseline_total_cost": 129614.1960530141,
+        "cost_reduction_pct_by_baseline": {
+          "lag_7": 60.38855512219723,
+          "moving_average_28": 55.17478422896106,
+          "moving_average_7": 56.33583847016461,
+          "statsforecast": 52.96121261047914
+        },
+        "cost_reduction_vs_best_baseline_pct": 52.96121261047914,
+        "cost_reduction_vs_fixed_formula_pct": 25.99771579195182,
+        "optimized_improves_fixed_formula": true,
+        "policy_total_costs": {
+          "fixed_formula_policy": 82387.92458974302,
+          "lag_7": 153917.50110630138,
+          "moving_average_28": 136014.84133268887,
+          "moving_average_7": 139631.55130404697,
+          "optimized_policy": 60968.946108014046,
+          "statsforecast": 129614.1960530141
+        },
+        "understock_to_overstock_ratio": 100.0
+      },
+      "low": {
+        "best_baseline": "statsforecast",
+        "best_baseline_total_cost": 7652.850765326844,
+        "cost_reduction_pct_by_baseline": {
+          "lag_7": 30.618285741273382,
+          "moving_average_28": 21.271948542076867,
+          "moving_average_7": 23.442705715151316,
+          "statsforecast": 16.916770285753927
+        },
+        "cost_reduction_vs_best_baseline_pct": 16.916770285753927,
+        "cost_reduction_vs_fixed_formula_pct": -2.038930564104518,
+        "optimized_improves_fixed_formula": false,
+        "policy_total_costs": {
+          "fixed_formula_policy": 6231.1860246815,
+          "lag_7": 9164.137336438356,
+          "moving_average_28": 8076.200875418786,
+          "moving_average_7": 8305.198923812133,
+          "optimized_policy": 6358.235581044941,
+          "statsforecast": 7652.850765326844
+        },
+        "understock_to_overstock_ratio": 5.0
+      },
+      "medium": {
+        "best_baseline": "statsforecast",
+        "best_baseline_total_cost": 26909.90528443536,
+        "cost_reduction_pct_by_baseline": {
+          "lag_7": 53.21358106515579,
+          "moving_average_28": 47.02069254146543,
+          "moving_average_7": 48.41427315627037,
+          "statsforecast": 44.32912643090539
+        },
+        "cost_reduction_vs_best_baseline_pct": 44.32912643090539,
+        "cost_reduction_vs_fixed_formula_pct": 17.93912506140477,
+        "optimized_improves_fixed_formula": true,
+        "policy_total_costs": {
+          "fixed_formula_policy": 18255.934219164898,
+          "lag_7": 32019.93161589041,
+          "moving_average_28": 28277.038842356167,
+          "moving_average_7": 29040.938773322898,
+          "optimized_policy": 14980.979348461118,
+          "statsforecast": 26909.90528443536
+        },
+        "understock_to_overstock_ratio": 20.0
+      }
+    },
+    "fixed_formula_policy": {
+      "order_quantity_multiplier": 1.0,
+      "safety_stock_multiplier": 1.0,
+      "service_level": 0.95
+    },
+    "forecast_prediction_checksum_after": 58821.3360913474,
+    "forecast_prediction_checksum_before": 58821.3360913474,
+    "forecast_predictions_unchanged": true,
+    "headline": {
+      "conservative_low_ratio_reduction_vs_best_baseline_pct": 16.916770285753927,
+      "conservative_low_ratio_reduction_vs_fixed_formula_pct": -2.038930564104518,
+      "cost_reduction_vs_best_baseline_pct_range": {
+        "max": 52.96121261047914,
+        "min": 16.916770285753927
+      },
+      "cost_reduction_vs_fixed_formula_pct_range": {
+        "max": 25.99771579195182,
+        "min": -2.038930564104518
+      }
+    },
+    "method": "deterministic_grid_search",
+    "objective": "minimize mean calibration cost across configured scenarios",
+    "objective_scenarios": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "optimization_level": "demand_pattern",
+    "policy_calibration_period": "2024-10-07 to 2024-11-17",
+    "policy_calibration_rows": 5040,
+    "policy_evaluation_period": "2024-11-18 to 2024-12-30",
+    "policy_evaluation_rows": 5160,
+    "policy_quantity_summary": {
+      "fixed_formula_mean": 7.471866222326172,
+      "interval_width_change_pct": 0.0,
+      "optimized_mean": 8.718905256958964,
+      "optimized_vs_fixed_formula_mean_change_pct": 16.68979338664549
+    },
+    "selected_policy_by_demand_pattern": {
+      "intermittent": {
+        "order_quantity_multiplier": 2.0,
+        "safety_stock_multiplier": 1.5,
+        "service_level": 0.97
+      },
+      "regular": {
+        "order_quantity_multiplier": 2.0,
+        "safety_stock_multiplier": 1.5,
+        "service_level": 0.97
+      }
+    },
+    "warnings": [
+      "large synthetic policy improvement in high scenario; sensitive to baseline and cost assumptions",
+      "optimized policy does not improve fixed_formula_policy in low scenario",
+      "optimized policy improvement is concentrated in the high cost-ratio scenario"
+    ]
+  },
+  "recommendation_rows": 120,
+  "run_id": "1cd8fafbd95449029cb2423c0d158555",
+  "scope": "PR-04 decision intelligence",
+  "seed": 42,
+  "service_level": 0.95,
+  "statsforecast_interval_reference": {
+    "average_width": 4.7735237243624535,
+    "by_demand_pattern": {
+      "intermittent": {
+        "average_width": 6.876788932098324,
+        "coverage": 0.619281045751634,
+        "rows": 3060
+      },
+      "regular": {
+        "average_width": 3.872124349618509,
+        "coverage": 0.5784313725490197,
+        "rows": 7140
+      }
+    },
+    "coverage": 0.5906862745098039,
+    "enabled": true,
+    "level": 80,
+    "method": "statsforecast_native_conformal_reference",
+    "model_usage": {
+      "intermittent": [
+        "CrostonClassic",
+        "CrostonSBA"
+      ],
+      "regular": [
+        "AutoETS",
+        "SeasonalNaive"
+      ]
+    },
+    "rows": 10200
+  },
+  "test_period": "2024-10-07 to 2024-12-30",
+  "train_period": "2024-01-29 to 2024-10-06",
+  "warnings": [
+    "large synthetic improvement; sensitive to baseline and cost assumptions",
+    "large synthetic policy improvement in high scenario; sensitive to baseline and cost assumptions",
+    "optimized policy does not improve fixed_formula_policy in low scenario",
+    "optimized policy improvement is concentrated in the high cost-ratio scenario"
+  ],
+  "z_score": 1.644853626951472
+}

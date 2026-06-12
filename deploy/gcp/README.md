@@ -20,17 +20,22 @@ Only the **AI Operations API** container (see the repo-root `Dockerfile`):
 - `POST /v1/ingest/inventree` — **UNSAFE / blocked** in cloud mode
   (`INVFORGE_ALLOW_MUTATIONS=false`)
 
-InvenTree core, MLflow, ZenML, retraining, and the Streamlit dashboard are
-**not** deployed here. See `docs/deployment-contract.md`.
+InvenTree core, MLflow, ZenML, retraining, and the Streamlit dashboard API
+container are **not** in the API image. The **dashboard** has a separate
+Cloud Run profile (`Dockerfile.dashboard`, `deploy/gcp/dashboard.*`). See
+`docs/cloud/gcp-cloud-run-activation.md`.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `service.template.yaml` | Cloud Run (Knative) service manifest — placeholders only |
+| `service.template.yaml` | Cloud Run API service manifest |
+| `dashboard.service.template.yaml` | Cloud Run dashboard service manifest (PR-15) |
 | `env.example` | Deploy variables template (copy to a git-ignored `.env`) |
-| `deploy.example.sh` | Build → push → deploy → verify (template; `set -euo pipefail`) |
-| `teardown.example.sh` | Delete the service (and optionally the image) |
+| `deploy.example.sh` | Build → push → deploy → verify API |
+| `dashboard.deploy.example.sh` | Build → push → deploy → verify dashboard |
+| `teardown.example.sh` | Delete the API service |
+| `dashboard.teardown.example.sh` | Delete the dashboard service |
 | `cloud-armor.template.yaml` | WAF/DDoS profile template (activation-ready, not live) |
 
 ## Prerequisites
