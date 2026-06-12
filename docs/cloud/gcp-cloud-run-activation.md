@@ -1,7 +1,10 @@
 # GCP Cloud Run — activation guide
 
-> **PR-13 status:** Documentation only. **Not executed in PR-13.** No cloud
-> resources were created. Activate manually with your own GCP project and billing.
+> **PR-13 / PR-13.1 status:** Activation guide only. **No live Cloud Run service
+> exists yet.** PR-13 did not run `gcloud`. PR-13.1 attempted deployment but
+> was **blocked** (`gcloud` CLI not installed on the build machine). See
+> [PR13_1_CLOUD_RUN_LIVE_DEMO.md](../evidence/PR13_1_CLOUD_RUN_LIVE_DEMO.md).
+> Activate manually with your own GCP project and billing.
 
 Cloud Run is the **preferred low-cost public demo target** for the InvForge
 read-only AI Operations API.
@@ -117,7 +120,12 @@ balancer resources.
 
 Detailed reference: [deploy/gcp/README.md](../../deploy/gcp/README.md)
 
-## Not executed in PR-13
+## Not live yet (PR-13 / PR-13.1)
 
-This guide was written for reviewer activation. PR-13 did not run `gcloud`,
-create GCP resources, or smoke-test a live Cloud Run service.
+This guide was written for reviewer activation. PR-13 did not run `gcloud`.
+PR-13.1 (2026-06-12) inspected the deploy contract and planned a read-only
+`invforge-ai-demo` service in `us-central1`, but deployment was **blocked**
+because `gcloud` was not available. No GCP resources were created.
+
+After you deploy, label it exactly: **“Live Cloud Run demo of the read-only AI
+Operations API.”** Do not call it production.

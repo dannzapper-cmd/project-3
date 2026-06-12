@@ -1,9 +1,9 @@
 # GCP — Cloud Run deploy profile (primary, PR-10)
 
-> **Status:** Deployment profile available. **Not actively deployed.** This
-> profile configures a Cloud Run deployment of the InvForge AI Operations Layer.
-> Activate it manually with your own credentials by following this README. It
-> has not been deployed or smoke-tested in CI.
+> **Status:** Deployment profile available. **Not actively deployed.** PR-13.1
+> (2026-06-12) planned `invforge-ai-demo` in `us-central1` but was blocked
+> (`gcloud` not installed). Activate manually with your own credentials. See
+> `docs/evidence/PR13_1_CLOUD_RUN_LIVE_DEMO.md`.
 
 Google **Cloud Run** is the **primary** deploy target for InvForge. It is a
 fully managed, scale-to-zero container runtime — a good fit for a low-cost,

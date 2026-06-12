@@ -39,7 +39,9 @@ and [PR-12.6 senior QA report](evidence/PR12_6_SENIOR_QA_USABLE_DEMO.md).
 
 - **No live multi-cloud deployment.** GCP Cloud Run, AWS ECS/Fargate, and Azure
   Container Apps profiles are **activation-ready templates** only. No cloud
-  resources are created by CI or PR-13.
+  resources are created by CI or PR-13. PR-13.1 (2026-06-12) attempted a
+  read-only Cloud Run demo but was **blocked** because `gcloud` was not
+  installed — see [PR13_1 evidence](evidence/PR13_1_CLOUD_RUN_LIVE_DEMO.md).
 - **Cloud profiles require manual activation** with your own credentials, billing,
   and cost acceptance. See [cloud activation guides](cloud/).
 - **No Terraform / full IaC** in the current scope. Production hardening would

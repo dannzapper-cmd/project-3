@@ -4,6 +4,12 @@ This directory holds **local validation evidence** for senior QA passes and fina
 packaging. Timestamped machine logs are **not** committed by default (see
 `.gitignore`).
 
+## PR-13.1 — Cloud Run live demo (blocked)
+
+| Artifact | Purpose |
+|----------|---------|
+| `PR13_1_CLOUD_RUN_LIVE_DEMO.md` | PR-13.1 deploy attempt: contract inspection PASS, `gcloud` missing BLOCKED |
+
 ## PR-13 — Final packaging
 
 | Artifact | Purpose |
@@ -58,7 +64,7 @@ bash scripts/collect_pr12_6_evidence.sh --lineage
 | Deploy profiles validate offline | **Yes** | `make deploy-validate`, PR-12.6 |
 | kind observability alert loop | **Yes** | PR-12.6 combined obs test |
 | Marquez retraining lineage | **Yes** (local kind) | PR-12.6 lineage smoke; screenshot manual |
-| Live Cloud Run / ECS / Azure deploy | **No** | Templates only — see `docs/cloud/` |
+| Live Cloud Run / ECS / Azure deploy | **No** | PR-13.1 blocked (`gcloud` missing); templates — see `docs/cloud/` |
 | Production ROI / customer savings | **No** | Synthetic data only |
 | GitHub Actions green for PR-13 | **Yes** | PR #17 CI + Deploy Validation + Security |
 

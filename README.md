@@ -157,7 +157,9 @@ Local gates (PR-12.6): 154 pytest passed, `deploy-validate`, `secrets-scan`, `se
 
 ## Cloud activation
 
-Templates only — **no live cloud resources in CI or PR-13**:
+Templates only — **no live Cloud Run service yet** (PR-13.1 deploy blocked:
+`gcloud` not on build machine; see
+[PR-13.1 evidence](docs/evidence/PR13_1_CLOUD_RUN_LIVE_DEMO.md)):
 
 | Provider | Target | Guide |
 |----------|--------|-------|

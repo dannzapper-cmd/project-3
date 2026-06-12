@@ -16,4 +16,12 @@ Repo: `/Users/danny/project-3-clean`
 | `github-actions-green.png` | **PASS** | https://github.com/dannzapper-cmd/project-3/pull/17/checks | CI + Deploy Validation + Security green |
 | `terminal-demo-local-pass.png` | **PASS** | make demo-local | Rendered terminal output |
 
-Regenerate: `bash scripts/capture_pr13_screenshots.sh` (set `SKIP_MARQUEZ=1` to retain Marquez PNG)
+### Cloud Run (PR-13.1 — blocked)
+
+| File | Status | URL | Notes |
+|------|--------|-----|-------|
+| `cloud-run-health.png` | **NOT CAPTURED** | — | `gcloud` not installed; no live service |
+| `cloud-run-docs.png` | **NOT CAPTURED** | — | Capture after manual deploy |
+| `cloud-run-mutation-blocked.png` | **NOT CAPTURED** | — | Optional 403 proof |
+
+Regenerate local set: `bash scripts/capture_pr13_screenshots.sh` (set `SKIP_MARQUEZ=1` to retain Marquez PNG)

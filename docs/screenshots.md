@@ -27,6 +27,14 @@ See [`SCREENSHOT_MANIFEST.md`](assets/screenshots/SCREENSHOT_MANIFEST.md) for th
 | `github-actions-green.png` | GitHub PR checks UI | CI + Deploy Validation + Security green on PR #17 | Future PRs until re-verified |
 | `terminal-demo-local-pass.png` | `make demo-local` output | Full offline pipeline completes; dashboard smoke passes | Full k8s/obs/lineage stack |
 
+### Cloud Run (PR-13.1 — not captured)
+
+| File | Status | Notes |
+|------|--------|-------|
+| `cloud-run-health.png` | **NOT CAPTURED** | Blocked: no live `SERVICE_URL` |
+| `cloud-run-docs.png` | **NOT CAPTURED** | Blocked: no live `SERVICE_URL` |
+| `cloud-run-mutation-blocked.png` | **NOT CAPTURED** | Optional; capture after deploy |
+
 ## Commands used per screenshot
 
 ### Dashboard and API (automated script)
@@ -91,7 +99,7 @@ Automated fallback: script writes `docs/assets/screenshots/demo-local-pass.log`.
 
 **Not proven by screenshots alone:**
 
-- Live GCP/AWS/Azure deployment (templates only)
+- Live GCP/AWS/Azure deployment (PR-13.1 Cloud Run attempt blocked — `gcloud` missing; see [PR13_1_CLOUD_RUN_LIVE_DEMO.md](evidence/PR13_1_CLOUD_RUN_LIVE_DEMO.md))
 - Production auth, WAF, or network isolation
 - Real InvenTree ingestion with customer data
 - Managed Kubernetes (GKE/EKS/AKS)

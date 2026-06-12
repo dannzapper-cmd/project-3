@@ -65,7 +65,8 @@ PR-13 portfolio packaging plus **self-explaining visual polish**:
 | security-check | **PASS** |
 | demo-local | **PASS** |
 | Screenshot capture | **PASS** (10/10) |
-| Cloud deploy | **NOT RUN** |
+| Cloud deploy (PR-13) | **NOT RUN** |
+| Cloud deploy (PR-13.1) | **BLOCKED** — `gcloud` not installed; see [PR13_1_CLOUD_RUN_LIVE_DEMO.md](PR13_1_CLOUD_RUN_LIVE_DEMO.md) |
 | GitHub Actions (PR #17) | **PASS** (verified green) |
 
 ## Security confirmations
@@ -83,6 +84,13 @@ PR-13 portfolio packaging plus **self-explaining visual polish**:
 Portfolio packaging complete with self-explaining System Flow panel, backend
 evidence docs, and full screenshot set. GitHub Actions green on PR #17.
 
+## PR-13.1 follow-up
+
+Live Cloud Run demo **not deployed** (gcloud missing). Danny must install/auth
+`gcloud`, deploy `invforge-ai-demo`, smoke-test, capture screenshots, then
+update README with live URLs. Evidence: [PR13_1_CLOUD_RUN_LIVE_DEMO.md](PR13_1_CLOUD_RUN_LIVE_DEMO.md).
+
 ## Exact next action
 
-Merge PR #17 after final reviewer pass. Optional: record demo video from `docs/demo-script.md`.
+Merge PR #17 after final reviewer pass, or complete PR-13.1 Cloud Run demo
+first if a live read-only API URL is required for portfolio reviewers.
