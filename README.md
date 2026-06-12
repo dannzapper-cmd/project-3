@@ -2,300 +2,224 @@
 
 [![CI](https://github.com/dannzapper-cmd/project-3/actions/workflows/ci.yml/badge.svg)](https://github.com/dannzapper-cmd/project-3/actions/workflows/ci.yml)
 
-InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It adds demand forecasting, stockout prediction, MLOps, observability, and decision intelligence **without modifying the InvenTree core**.
+InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It turns inventory events and demand history into forecast-informed decisions, risk flags, reorder recommendations, model health checks, and auditable operational evidence — **without modifying InvenTree core**.
 
-> **Status:** PR-11B merged (local Kubernetes AI layer plus optional observability
-> and lineage profiles). PR-12 is the current full QA/audit hardening pass.
+> **Status:** PR-01 through PR-12.6 merged. PR-13 final packaging — portfolio-ready documentation, screenshots, and activation guides.
+
+## What this demonstrates
+
+- **Sidecar architecture** — clean integration over enterprise open-source, not a fork
+- **ML pipeline** — LightGBM + StatsForecast + Croston/SBA with p10/p50/p90 quantiles
+- **Decision intelligence** — safety stock, ROP, EOQ, stockout risk from forecasts
+- **MLOps loop** — Evidently drift, MLflow registry, champion/challenger, BentoML, ZenML retraining
+- **Observability** — `/health`, `/metrics`, local Prometheus/Grafana, optional kind LGTM stack
+- **Defensive security** — audit pipeline, CI scanning, mutation blocking in demo/cloud mode
+- **Cloud-ready deploy templates** — GCP Cloud Run (primary), AWS ECS Fargate, Azure Container Apps
+
+## Screenshots
+
+Captured from locally running services after `make demo-local`:
+
+| Dashboard overview | Decision intelligence | API docs |
+|---|---|---|
+| ![Dashboard overview](docs/assets/screenshots/dashboard-overview.png) | ![Decision intelligence](docs/assets/screenshots/dashboard-decision-intelligence.png) | ![API docs](docs/assets/screenshots/api-docs.png) |
+
+| MLOps status | API health | Grafana (local) |
+|---|---|---|
+| ![MLOps](docs/assets/screenshots/dashboard-mlops.png) | ![API health](docs/assets/screenshots/api-health.png) | ![Grafana](docs/assets/screenshots/grafana-observability.png) |
+
+More: [screenshots folder](docs/assets/screenshots/) · [screenshot guide](docs/screenshots.md)
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph invforge_sidecar ["InvForge Sidecar (PR-02 → PR-11B)"]
+    subgraph invforge_sidecar ["InvForge Sidecar"]
         API["FastAPI AI Ops API"]
         ML["ML Training / Serving"]
-        MLOps["MLflow · Feast · Evidently"]
+        MLOps["MLflow · Evidently · ZenML"]
+        DASH["Streamlit Dashboard (local)"]
         OBS["Prometheus · Grafana"]
     end
 
-    subgraph inventree_base ["InvenTree Base Stack (PR-01)"]
+    subgraph inventree_base ["InvenTree Base Stack (unchanged)"]
         PROXY["Caddy Proxy"]
         SERVER["InvenTree Server"]
         WORKER["Background Worker"]
         PG["PostgreSQL"]
-        REDIS["Redis Cache"]
+        REDIS["Redis"]
     end
 
     PROXY --> SERVER
     SERVER --> PG
     SERVER --> REDIS
     WORKER --> PG
-    WORKER --> REDIS
 
-    API -. "REST API (future)" .-> SERVER
-    ML -. "Features / Predictions" .-> API
+    API -. "REST read-only (optional)" .-> SERVER
+    ML --> API
+    MLOps --> ML
+    DASH -. "reads artifacts" .-> ML
+    OBS -. "scrapes /metrics" .-> API
 ```
 
-**Principle:** InvenTree runs unchanged in Docker. All AI/MLOps components are external services that consume InvenTree's REST API. Kubernetes work deploys only the AI Operations Layer; observability and lineage are optional local profiles.
+Full reference: [architecture overview](docs/architecture-final.md)
 
-## Repository structure
+## Business case
 
-```
-app/              InvenTree Docker Compose + config (base stack)
-api/              FastAPI AI Operations API (PR-02+)
-ml/               Models, features, training (PR-03+)
-mlops/            MLflow, Evidently, ZenML (PR-05+)
-data/synthetic/   Deterministic synthetic inventory generator
-feast/            Feature store definitions (PR-02+)
-dashboard/        Streamlit AI Operations dashboard (PR-06)
-observability/    Metrics, dashboards (PR-07+)
-security/         Audit, risk scoring (PR-08+)
-deploy/           Cloud/k8s profiles (PR-10+)
-docs/             Architecture, ADRs, model cards, runbooks
+Inventory teams often rely on fragmented spreadsheets, reactive reorder rules, and delayed visibility into stockout risk. InvForge adds a practical **AI Operations layer** that:
+
+- Surfaces **stockout/overstock risk** for ops review cycles
+- Produces **ranked reorder recommendations** from forecast quantiles
+- Exposes **model health and drift status** for governance conversations
+- Ships a **deployable read-only API** technical teams can run beside existing ERP/inventory systems
+
+The value is **decision support**, not autonomous magic. All quantified cost metrics in the demo are **synthetic backtest diagnostics** — not production ROI. See [case study](docs/case-study.md).
+
+## Demo scenario
+
+Concrete SKU story for reviewers: [examples/demo-scenario/](examples/demo-scenario/)
+
+```bash
+make demo-local    # data → ML → MLOps → dashboard smoke (no Docker/k8s)
+make dashboard     # interactive Streamlit at http://localhost:8501
 ```
 
 ## Quick start
 
 ### Prerequisites
 
-- Docker and Docker Compose v2
+- Docker and Docker Compose v2 (for InvenTree and optional observability)
 - [uv](https://docs.astral.sh/uv/) (Python 3.12+)
 - Make
 
-### 1. Install dev tooling
+### Install and run
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv sync --group dev --group pipeline
-```
-
-### 2. Configure InvenTree environment
-
-```bash
+uv sync --group dev --group pipeline --group ml --group mlops --group dashboard --group observability
 cp app/.env.example app/.env
-# Edit app/.env if needed (defaults use port 8080 for HTTP)
+make demo-local
+make dashboard          # http://localhost:8501
+make observability-api  # http://localhost:8001 — separate terminal
 ```
 
-InvenTree is pinned to **v1.3.2** via `INVENTREE_TAG` in `.env.example`.
+One-command offline chain: **`make demo-local`** (no long-running servers).
 
-### 3. Start the InvenTree base stack
+Step-by-step: [quick demo walkthrough](docs/tutorials/quick-demo-walkthrough.md) · [5–8 min demo script](docs/demo-script.md)
 
-```bash
-make docker-up
+## What a reviewer can run locally
+
+| Command | What you get |
+|---------|--------------|
+| `make demo-local` | Full synthetic pipeline + dashboard smoke |
+| `make dashboard` | Streamlit AI Operations control tower |
+| `make observability-api` | FastAPI with `/health`, `/metrics`, `/docs` |
+| `make observability-up` | Local Prometheus + Grafana (Docker) |
+| `make docker-smoke` | Build + run deployable AI Ops container |
+| `make deploy-validate` | Offline validation of 66 deploy files |
+| `make k8s-up` / `obs-k8s-up` / `lineage-up` | Optional kind profiles (sequential on 8 GB Mac) |
+
+Backend deep-dive: [backend and ML explainer](docs/tutorials/backend-and-ml-explainer.md)
+
+## What is deployable publicly
+
+Only the **read-only AI Operations API** container (repo-root `Dockerfile`):
+
+- `GET /health`, `GET /metrics`, `GET /v1/inventory/status`, `GET /v1/data/summary`
+- Mutation endpoints **blocked** in demo/cloud mode
+
+Preferred target: **GCP Cloud Run** (scale-to-zero, low-cost demo). Activation: [GCP guide](docs/cloud/gcp-cloud-run-activation.md)
+
+Contract: [deployment contract](docs/deployment-contract.md)
+
+## What remains local-only
+
+- Streamlit dashboard, MLflow, ZenML, retraining UI
+- InvenTree base stack (external system of record)
+- Synthetic/processed data artifacts (`mlruns/`, `artifacts/`)
+- kind Kubernetes profiles (local evidence, not managed cloud k8s)
+- Docker Prometheus/Grafana stack
+
+## Validation and evidence
+
+| Evidence | Path |
+|----------|------|
+| PR-12.6 senior QA | [docs/evidence/PR12_6_SENIOR_QA_USABLE_DEMO.md](docs/evidence/PR12_6_SENIOR_QA_USABLE_DEMO.md) |
+| PR-13 packaging report | [docs/evidence/PR13_FINAL_PACKAGING_REPORT.md](docs/evidence/PR13_FINAL_PACKAGING_REPORT.md) |
+| Evidence index | [docs/evidence/README.md](docs/evidence/README.md) |
+| Screenshots | [docs/assets/screenshots/](docs/assets/screenshots/) |
+
+Local gates (PR-12.6): 154 pytest passed, `deploy-validate`, `secrets-scan`, `security-check`, `demo-local`, Docker/kind/observability/lineage smoke tests.
+
+## Cloud activation
+
+Templates only — **no live cloud resources in CI or PR-13**:
+
+| Provider | Target | Guide |
+|----------|--------|-------|
+| GCP (primary) | Cloud Run | [docs/cloud/gcp-cloud-run-activation.md](docs/cloud/gcp-cloud-run-activation.md) |
+| AWS | ECS Fargate | [docs/cloud/aws-ecs-fargate-activation.md](docs/cloud/aws-ecs-fargate-activation.md) |
+| Azure | Container Apps | [docs/cloud/azure-container-apps-activation.md](docs/cloud/azure-container-apps-activation.md) |
+
+Source templates: [deploy/gcp/](deploy/gcp/) · [deploy/aws/](deploy/aws/) · [deploy/azure/](deploy/azure/)
+
+## Security, observability, and MLOps
+
+- **Security:** mutation blocking, audit pipeline, detect-secrets/Bandit/pip-audit/Trivy in CI, SBOM generation — [security/](security/)
+- **Observability:** Prometheus metrics, Grafana dashboards, AlertManager alert smoke test — [docs/observability.md](docs/observability.md)
+- **MLOps:** MLflow tracking, Evidently drift, champion/challenger, BentoML packaging, ZenML retraining with gated promotion — [docs/mlops.md](docs/mlops.md)
+- **Lineage:** OpenLineage → Marquez (optional kind profile) — [docs/runbooks/lineage-inspection.md](docs/runbooks/lineage-inspection.md)
+
+## Limitations
+
+Honest caveats: synthetic data by default, no production savings claims, no live multi-cloud deployment, dashboard local-only, no production auth layer, kind ≠ managed k8s.
+
+Full list: [docs/limitations.md](docs/limitations.md)
+
+## Portfolio and interview prep
+
+- [Case study](docs/case-study.md)
+- [Portfolio / CV copy](docs/portfolio-pack.md)
+- [Demo script (5–8 min)](docs/demo-script.md)
+
+## Repository structure
+
+```
+app/              InvenTree Docker Compose + config (base stack)
+api/              FastAPI AI Operations API
+ml/               Models, features, training
+mlops/            MLflow, Evidently, ZenML, retraining
+data/synthetic/   Deterministic synthetic inventory generator
+dashboard/        Streamlit AI Operations dashboard (local)
+observability/    Metrics, dashboards
+security/         Audit, risk scoring
+deploy/           Cloud/k8s profiles
+docs/             Architecture, case study, evidence, cloud guides
+examples/         Demo scenario, sample API JSON
 ```
 
-On first run, initialize the database and static files:
-
-```bash
-make docker-init
-```
-
-Optional: create an admin user:
-
-```bash
-cd app && docker compose run --rm inventree-server invoke superuser
-```
-
-Open InvenTree at [http://inventree.localhost:8080](http://inventree.localhost:8080) (or the URL set in `INVENTREE_SITE_URL`).
-
-### 4. Generate and validate synthetic inventory data
-
-```bash
-make generate-data
-make validate-data
-# or:
-uv run python data/synthetic/generate_inventory_data.py \
-  --output data/synthetic/output --seed 42
-```
-
-Outputs CSV files in `data/synthetic/output/`:
-
-| File | Description |
-|------|-------------|
-| `categories.csv` | Part categories |
-| `suppliers.csv` | Suppliers with lead times |
-| `parts.csv` | Parts/items with stock levels and reorder points |
-| `stock_movements.csv` | In/out/adjustment movements |
-| `demand_history.csv` | Daily demand history (~30% intermittent items) |
-
-Data is **deterministic** — the same `--seed` always produces identical output.
-
-### 5. Train demand forecast baselines (PR-03)
-
-```bash
-uv sync --group dev --group ml
-make train-ml
-```
-
-This trains a global **LightGBM** model and **StatsForecast** baselines (AutoETS/SeasonalNaive for regular items, Croston/CrostonSBA for intermittent). Metrics and artifacts are logged to local `mlruns/`. See `docs/runbooks/pr-03-ml-baseline.md` and `docs/model-cards/demand_forecast_baseline.md`.
-
-### 6. Generate decision intelligence recommendations (PR-04)
-
-```bash
-uv sync --group dev --group ml
-make decision-intel
-```
-
-This trains additive LightGBM quantile models (`p10/p50/p90`) on the existing
-temporal backtest and converts forecasts into synthetic inventory recommendations:
-safety stock, reorder point, EOQ, prediction intervals, stockout risk, and
-simulated cost-aware metrics. Artifacts are written under `artifacts/decision/`
-and logged to local MLflow. Results are **synthetic simulated backtest only**,
-not production savings claims. See `docs/decision-intelligence.md`.
-
-### 7. Run the local MLOps loop (PR-05)
-
-```bash
-uv sync --group dev --group ml --group mlops
-make mlops-loop
-```
-
-See `docs/mlops.md` for artifact paths and limitations.
-
-### 8. Launch the AI Operations Dashboard (PR-06)
-
-Generate artifacts first (steps 4–7 above), then:
-
-```bash
-uv sync --group dev --group dashboard
-make UV="uv" dashboard
-```
-
-Non-interactive loader smoke check:
-
-```bash
-make UV="uv" dashboard-smoke
-```
-
-The dashboard reads PR-03/04/05 artifacts only (no pipeline triggers). See
-`docs/dashboard.md` for section details, missing-artifact behavior, and scope.
-
-### 9. Run the AI Operations API
-
-```bash
-cp api/.env.example api/.env
-make api-dev
-make api-health
-```
-
-Live read-only ingestion supports two auth options. Token auth is preferred:
-
-```bash
-export INVENTREE_BASE_URL=http://inventree.localhost:8080
-export INVENTREE_API_TOKEN=<real-token>
-unset INVENTREE_USERNAME INVENTREE_PASSWORD
-make ingest-inventree
-```
-
-For local Docker Desktop smoke tests where token auth fails but direct Basic Auth works, use the Basic Auth fallback:
-
-```bash
-export INVENTREE_BASE_URL=http://inventree.localhost:8080
-export INVENTREE_API_TOKEN=replace-me
-export INVENTREE_USERNAME=admin
-export INVENTREE_PASSWORD=<local-admin-password>
-make ingest-inventree
-```
-
-Raw snapshots are written to `data/raw/inventree/`; normalized CSVs are written to `data/processed/`. These generated folders are ignored by git. Never commit real tokens or passwords.
-
-### 10. Observability (PR-07, local/dev only)
-
-The AI Operations API exposes a `/health` status endpoint and a Prometheus
-`/metrics` endpoint. An optional local Prometheus + Grafana stack visualizes
-them.
-
-```bash
-# Start the API with /health and /metrics:
-make UV="uv" observability-api          # http://localhost:8001/health, /metrics
-
-# Optional local Prometheus + Grafana (Docker):
-make UV="uv" observability-up           # Grafana: http://localhost:3000 (admin/admin, dev-only)
-make UV="uv" observability-down
-
-# Offline smoke check (no Docker, no server):
-make UV="uv" observability-smoke
-```
-
-This PR-07 Docker Compose stack is **local/dev observability only** — not
-production monitoring. PR-11B adds separate optional local-kind observability and
-lineage profiles (`make obs-k8s-*`, `make lineage-*`); traces remain idle until
-future API instrumentation. See `docs/observability.md` and the PR-11B runbooks.
-
-## Makefile commands
+## Makefile essentials
 
 | Command | Description |
 |---------|-------------|
-| `make docker-config` | Validate Docker Compose syntax |
-| `make docker-up` | Start InvenTree base stack |
-| `make docker-down` | Stop InvenTree base stack |
-| `make docker-logs` | Tail container logs |
-| `make docker-init` | First-time `invoke update` setup |
-| `make api-dev` | Start the FastAPI AI Operations sidecar |
-| `make api-health` | Check the API health endpoint |
-| `make ingest-inventree` | Trigger read-only InvenTree ingestion via the API |
-| `make generate-data` | Generate synthetic inventory CSVs |
-| `make validate-data` | Validate synthetic and processed data with Pandera |
-| `make dvc-repro` | Run DVC generate/validate stages |
-| `make train-ml` | Train PR-03 demand forecast baselines |
-| `make decision-intel` | Generate PR-04 inventory recommendations |
-| `make mlops-loop` | Run PR-05 local MLOps loop (drift, registry, champ/chal, BentoML) |
-| `make dashboard` | Launch PR-06 Streamlit AI Operations dashboard |
-| `make dashboard-smoke` | Non-interactive dashboard loader smoke check |
-| `make deploy-validate` | Validate PR-10 deploy profiles/templates (offline) |
-| `make deploy-smoke` | Read-only smoke check (`BASE_URL=...`) against a running API |
-| `make docker-build-ai` | Build the deployable AI Operations Layer image |
-| `make docker-smoke` | Build + run (demo) the AI Ops container and smoke it |
-| `make lint` | Run Ruff linter |
-| `make test` | Run pytest |
-| `make secrets-scan` | Run detect-secrets scan |
-| `make ci` | Run core local CI checks (`lint`, `test`, data generation/validation, Docker Compose config when Docker is available) |
+| `make demo-local` | Chain data → ML → MLOps → dashboard smoke |
+| `make dashboard` | Launch Streamlit dashboard |
+| `make observability-api` | Start API with `/health` and `/metrics` |
+| `make deploy-validate` | Validate deploy profiles (offline) |
+| `make docker-smoke` | Build + smoke deployable container |
+| `make lint` / `make test` | Ruff + pytest |
+| `make secrets-scan` / `make security-check` | Security gates |
 
-Run `make help` for the full target list, including PR-08 security,
-PR-09 retraining, PR-11A Kubernetes, PR-11B observability, and lineage commands.
+Run `make help` for Kubernetes, observability, lineage, and retraining targets.
 
-## PR roadmap (summary)
+## PR roadmap
 
 | PR | Scope |
 |----|-------|
-| **PR-01** | Base setup — Docker, repo structure, synthetic data, CI skeleton |
-| **PR-02** | Data pipeline — ingestion, Feast, validation, DVC |
-| PR-03 | ML baseline — LightGBM, StatsForecast, Croston/SBA, MLflow |
-| PR-04 | Decision intelligence — safety stock, EOQ, ROP, quantile loss |
-| PR-05 | MLOps loop — Evidently, model registry, BentoML |
-| **PR-06** | AI Operations Dashboard — Streamlit local control tower |
-| PR-07 | Observability — Prometheus, Grafana |
-| PR-08 | Defensive security |
-| PR-09 | Retraining pipeline — ZenML, Optuna, gated promotion, safe rollback |
-| PR-10 | Cloud deploy profiles |
-| PR-11 | Senior Edition — k8s, LGTM, foundation models |
-| PR-12 | Full QA / audit |
-| PR-13 | Final packaging — case study, ADRs, demo script |
+| PR-01 → PR-11B | Base stack through Senior Edition (k8s, observability, lineage) |
+| PR-12 / PR-12.6 | Full QA audit + senior validation + usable demo |
+| **PR-13** | Final packaging — case study, screenshots, portfolio docs |
 
 See `PROJECT_3_INVFORGE_MASTER_CONTEXT.md` for full project context.
-
-## Current limitations / audit notes
-
-- No InvenTree core modifications, forks, vendoring, or patches.
-- Cloud profiles are activation-ready templates; no live cloud resources are
-  created by default.
-- BentoML and blue-green Kubernetes manifests are templated but disabled until a
-  real Bento image is built.
-- OpenLineage emission is env-gated (`OPENLINEAGE_URL`); Marquez is optional and
-  local-only.
-- Tempo/OTel backends are deployed in the optional observability profile but idle
-  until future API tracing instrumentation.
-- No real API tokens, passwords, kubeconfigs, or cloud credentials should be
-  committed.
-
-## Reviewer guides (PR-12.6)
-
-- [Quick demo walkthrough](docs/tutorials/quick-demo-walkthrough.md) — run the project from zero
-- [Backend and ML explainer](docs/tutorials/backend-and-ml-explainer.md) — architecture and artifacts
-- [Demo scenario](examples/demo-scenario/README.md) — concrete SKU story for the dashboard
-- [Senior QA evidence](docs/evidence/PR12_6_SENIOR_QA_USABLE_DEMO.md) — latest local validation report
-
-Fast offline chain: `make demo-local` (data → ML → MLOps → dashboard smoke; no Docker/k8s).
 
 ## Contributing
 
