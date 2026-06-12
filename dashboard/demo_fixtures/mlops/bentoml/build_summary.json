@@ -1,0 +1,28 @@
+{
+  "action": "saved_new_version",
+  "bentoml_version": "1.4.39",
+  "framework_api": "bentoml.sklearn",
+  "generated_at_utc": "2026-06-12T18:03:20.780571+00:00",
+  "labels": {
+    "data_source": "synthetic",
+    "mlflow_run_id": "ebfc6d5e055640769df378c61b6aea18",
+    "production_ready": "false",
+    "scope": "pr05"
+  },
+  "metadata": {
+    "champion": true,
+    "framework": "lightgbm",
+    "source_model_uri": "runs:/ebfc6d5e055640769df378c61b6aea18/lightgbm_model",
+    "warning": "Synthetic-data champion model; not production ready."
+  },
+  "mlflow_run_id": "ebfc6d5e055640769df378c61b6aea18",
+  "model_tag": "invforge_demand_forecast:74u4ggdgrce6hpn6",
+  "note": "Saved to the local BentoML model store only. No bentoml build, Docker image, or deployment was produced.",
+  "schema_version": "1.0",
+  "source_model_uri": "runs:/ebfc6d5e055640769df378c61b6aea18/lightgbm_model",
+  "status": "packaged",
+  "warnings": [
+    "Local BentoML model store only; no Docker image, serving deployment, or Kubernetes (those belong to later PRs).",
+    "Champion model is trained on synthetic data and is not production ready."
+  ]
+}
