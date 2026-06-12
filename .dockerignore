@@ -12,8 +12,8 @@
 # Local ML / MLOps state and generated artifacts
 mlruns/
 artifacts/
-bentoml/
-.bentoml/
+/bentoml/
+/.bentoml/
 *.bento
 .zenml/
 .zenml_local/

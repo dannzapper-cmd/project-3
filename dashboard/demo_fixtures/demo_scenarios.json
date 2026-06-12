@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "scenarios": [
+    {
+      "id": "stockout_triage",
+      "title": "Stockout risk triage",
+      "subtitle": "Scenario A",
+      "part_id": "PRT-0013",
+      "risk_level": "high",
+      "summary": "Intermittent SKU with critically low on-hand stock and elevated stockout probability in the synthetic backtest.",
+      "highlights": {
+        "prediction": 0.222,
+        "reorder_point": 39.73,
+        "safety_stock": 35.28,
+        "eoq": 14.06,
+        "stockout_risk": 0.564,
+        "current_stock": 1.0
+      },
+      "cta_label": "View decision recommendations",
+      "cta_anchor": "decision-intelligence"
+    },
+    {
+      "id": "forecast_review",
+      "title": "Forecast model review",
+      "subtitle": "Scenario B",
+      "champion": "lightgbm",
+      "challenger": "statsforecast",
+      "decision": "manual_review",
+      "summary": "Champion and challenger are within 5% on MAE — too close to auto-promote; manual review is the correct governance outcome.",
+      "highlights": {
+        "primary_metric": "mae",
+        "champion_mae": 2.102,
+        "challenger_mae": 2.088,
+        "relative_improvement_pct": 0.66
+      },
+      "cta_label": "View forecast performance",
+      "cta_anchor": "forecast-performance"
+    },
+    {
+      "id": "mlops_readiness",
+      "title": "MLOps readiness check",
+      "subtitle": "Scenario C",
+      "summary": "Cloud mode surfaces committed MLOps artifacts; local runs regenerate drift, registry, packaging, and Evidently reports.",
+      "highlights": {
+        "drift_detected": false,
+        "registry_strategy": "native_aliases",
+        "champion_challenger": "manual_review",
+        "bentoml_packaging": "packaged",
+        "evidently_reports": "present"
+      },
+      "cta_label": "View MLOps status",
+      "cta_anchor": "mlops-status"
+    }
+  ]
+}

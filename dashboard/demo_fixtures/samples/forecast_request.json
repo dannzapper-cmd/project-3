@@ -1,0 +1,14 @@
+{
+  "description": "Sample read-only inventory status request context for reviewers.",
+  "note": "The live cloud API exposes GET /health, GET /metrics, GET /v1/inventory/status, GET /v1/data/summary. POST /v1/ingest/inventree is blocked in cloud/demo mode.",
+  "sample_forecast_context": {
+    "part_id": "PRT-0001",
+    "horizon_days": 14,
+    "service_level": 0.95,
+    "synthetic_seed": 42
+  },
+  "expected_cloud_responses": {
+    "health": "GET /health returns 200 with artifact status flags",
+    "mutations_blocked": "POST /v1/ingest/inventree returns 403 in cloud mode"
+  }
+}

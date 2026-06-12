@@ -73,7 +73,8 @@ Choose your reviewer path:
 | URL | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app |
 | Login | Username `reviewer` · password `invforge-demo` (reviewer gate only) |
 | Banner | Read-only portfolio demo · synthetic data · not production |
-| Mobile | Login + overview OK; desktop best for charts/tables |
+| Highlights | Guided demo scenarios · view-only sample inputs · MLOps without contradictory missing states |
+| Mobile | Login + mission control OK; desktop best for charts/tables |
 
 > Reviewer gate only — not production security. Unlocks synthetic read-only content.
 
