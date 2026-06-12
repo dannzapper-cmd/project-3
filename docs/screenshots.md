@@ -26,6 +26,9 @@ See [`SCREENSHOT_MANIFEST.md`](assets/screenshots/SCREENSHOT_MANIFEST.md) for th
 | `marquez-lineage.png` | Marquez UI (kind port-forward) | OpenLineage lineage for retraining job | Production data catalog |
 | `github-actions-green.png` | GitHub PR checks UI | CI + Deploy Validation + Security green on PR #17 | Future PRs until re-verified |
 | `terminal-demo-local-pass.png` | `make demo-local` output | Full offline pipeline completes; dashboard smoke passes | Full k8s/obs/lineage stack |
+| `cloud-run-health.png` | Cloud Run `/health` | Live read-only API returns 200 in demo mode | Production deployment; local artifacts bundled |
+| `cloud-run-docs.png` | Cloud Run `/docs` | Live OpenAPI UI on Cloud Run | Mutation endpoints enabled |
+| `cloud-run-mutation-blocked.png` | POST ingest 403 | Mutation blocking verified on live service | WAF or auth layer |
 
 ## Commands used per screenshot
 
@@ -91,7 +94,7 @@ Automated fallback: script writes `docs/assets/screenshots/demo-local-pass.log`.
 
 **Not proven by screenshots alone:**
 
-- Live GCP/AWS/Azure deployment (templates only)
+- Live AWS/Azure deployment (GCP Cloud Run read-only API is live — see PR-14)
 - Production auth, WAF, or network isolation
 - Real InvenTree ingestion with customer data
 - Managed Kubernetes (GKE/EKS/AKS)

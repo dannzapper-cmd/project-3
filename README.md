@@ -4,7 +4,7 @@
 
 InvForge is an external **AI Operations sidecar** on top of [InvenTree](https://inventree.org/) — an open-source inventory management system. It turns inventory events and demand history into forecast-informed decisions, risk flags, reorder recommendations, model health checks, and auditable operational evidence — **without modifying InvenTree core**.
 
-> **Status:** PR-01 through PR-12.6 merged. PR-13 final packaging — portfolio-ready documentation, screenshots, and activation guides.
+> **Status:** PR-01 through PR-13 merged. PR-14 adds a live Cloud Run demo of the read-only AI Operations API.
 
 ## What this demonstrates
 
@@ -34,6 +34,25 @@ panel shows the backend pipeline chain this dashboard reads — not a frontend-o
 | ![Marquez lineage](docs/assets/screenshots/marquez-lineage.png) | ![GitHub Actions green](docs/assets/screenshots/github-actions-green.png) |
 
 More: [screenshots folder](docs/assets/screenshots/) · [screenshot guide](docs/screenshots.md)
+
+## Live API Demo
+
+**Live Cloud Run demo of the read-only AI Operations API** — not production.
+
+- [Health](https://invforge-ai-demo-289428962093.us-central1.run.app/health)
+- [OpenAPI docs](https://invforge-ai-demo-289428962093.us-central1.run.app/docs)
+- [Metrics](https://invforge-ai-demo-289428962093.us-central1.run.app/metrics)
+
+This live Cloud Run demo exposes **only** the read-only AI Operations API.
+Streamlit dashboard, MLflow, ZenML, InvenTree, retraining, and Kubernetes
+profiles remain **local-only**. Mutation endpoints are blocked
+(`INVFORGE_ALLOW_MUTATIONS=false`).
+
+Evidence: [PR-14 Cloud Run report](docs/evidence/PR14_CLOUD_RUN_LIVE_DEMO.md)
+
+| Cloud Run health | Cloud Run docs | Mutation blocked (403) |
+|---|---|---|
+| ![Cloud Run health](docs/assets/screenshots/cloud-run-health.png) | ![Cloud Run docs](docs/assets/screenshots/cloud-run-docs.png) | ![Mutation blocked](docs/assets/screenshots/cloud-run-mutation-blocked.png) |
 
 ## Architecture
 
@@ -157,7 +176,8 @@ Local gates (PR-12.6): 154 pytest passed, `deploy-validate`, `secrets-scan`, `se
 
 ## Cloud activation
 
-Templates only — **no live cloud resources in CI or PR-13**:
+GCP Cloud Run has a **live read-only demo** (see [Live API Demo](#live-api-demo) above).
+AWS and Azure profiles remain activation-ready templates only:
 
 | Provider | Target | Guide |
 |----------|--------|-------|
