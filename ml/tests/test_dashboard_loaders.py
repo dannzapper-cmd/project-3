@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 from dashboard.loaders import (
     derive_overview_status,
+    derive_system_flow_steps,
     format_mtime,
     load_bentoml_build_summary,
     load_champion_challenger_comparison,
@@ -172,6 +173,29 @@ def test_derive_overview_status_labels():
         "decision": "ok",
         "mlops": "missing",
     }
+
+
+def test_derive_system_flow_steps_pipeline_and_companion():
+    missing = {"status": "missing", "reason": "x", "commands": []}
+    ok = {
+        "status": "ok",
+        "data": {},
+        "path": "/tmp/x",
+        "mtime": "2024-01-01 00:00",
+    }
+    steps = derive_system_flow_steps(
+        synthetic=ok,
+        comparison=ok,
+        decision_summary=ok,
+        mlops_summary=missing,
+    )
+    assert len(steps) == 8
+    pipeline = [s for s in steps if s["kind"] == "pipeline"]
+    companions = [s for s in steps if s["kind"] == "companion"]
+    assert len(pipeline) == 5
+    assert len(companions) == 3
+    assert pipeline[0]["title"] == "Data source"
+    assert companions[0]["title"] == "API health / metrics"
 
 
 def test_format_mtime_missing_file():

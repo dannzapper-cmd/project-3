@@ -47,9 +47,25 @@ Static validation (no cluster): `make helm-lint`, `make helm-template`.
 | NetworkPolicy manifests | **Structural** (kindnet does not enforce; Calico optional) |
 | Retraining Job + CronJob (separate image, verified command) | **Implemented (opt-in)** |
 | BentoML model server + blue-green | **Templated but DISABLED** (no image yet) |
-| Redis inference cache | **Deferred to PR-11B** (no cache in API) |
+| Redis inference cache | **Deferred to production hardening** (no cache in API) |
 | Cosign signing | **Groundwork** (workflow_dispatch, non-blocking) |
-| LGTM / OTel Collector / AlertManager / OpenLineage / Marquez | **Deferred to PR-11B** |
+| Observability stack / OTel receivers / AlertManager / OpenLineage / Marquez | **Implemented as optional PR-11B profiles** (`obs-k8s-*`, `lineage-*`; traces idle until API instrumentation) |
 
 See `docs/adr/002-pr11a-kubernetes-scope.md` and the runbooks under
 `docs/runbooks/k8s-*.md`.
+
+## PR-11B — advanced observability + lineage (optional profiles)
+
+Two optional profiles build on this spine (never started by `make k8s-up`):
+
+- **Observability** — `deploy/k8s/observability/` (Prometheus, Grafana, Loki,
+  Promtail, Tempo, AlertManager, OTel Collector, webhook receiver).
+  Targets: `make obs-k8s-up | obs-k8s-status | obs-k8s-port-forward |
+  obs-k8s-smoke | obs-k8s-alert-test | obs-k8s-down`.
+- **Lineage** — `deploy/k8s/lineage/` (Marquez + OpenLineage).
+  Targets: `make lineage-up | lineage-status | lineage-port-forward |
+  lineage-smoke | lineage-down`.
+
+Docs: `docs/adr/003-pr11b-observability-lineage-scope.md` and the runbooks
+`observability-startup.md`, `grafana-inspection.md`, `alertmanager-test.md`,
+`otel-tracing.md`, `lineage-inspection.md`.

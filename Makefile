@@ -25,8 +25,16 @@ DASHBOARD_IMAGE ?= invforge-dashboard:local
 DASHBOARD_PORT ?= 8501
 LIVE_API_URL ?= https://invforge-ai-demo-lwcelvo7ya-uc.a.run.app
 LIVE_DASHBOARD_URL ?= https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app
+BENTO_IMAGE ?= invforge_demand_forecast:local
+# PR-11B optional observability + lineage profiles (NEVER started by k8s-up).
+OBS_CHART := deploy/k8s/observability
+OBS_RELEASE ?= invforge-obs
+OBS_NAMESPACE ?= invforge-observability
+LINEAGE_CHART := deploy/k8s/lineage
+LINEAGE_RELEASE ?= invforge-lineage
+LINEAGE_NAMESPACE ?= invforge-lineage
 
-.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop demo-local reviewer-demo dashboard dashboard-smoke docker-build-dashboard dashboard-docker-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback
+.PHONY: help docker-config docker-up docker-down docker-logs docker-init api-dev api-health ingest-inventree generate-data validate-data dvc-repro train-ml decision-intel mlops-loop demo-local reviewer-demo dashboard dashboard-smoke docker-build-dashboard dashboard-docker-smoke observability-api observability-up observability-down observability-smoke security-audit security-smoke security-check trivy-scan sbom deploy-validate deploy-smoke docker-build-ai docker-smoke lint test secrets-scan ci k8s-preflight k8s-up k8s-down k8s-load-images k8s-deploy k8s-status k8s-smoke k8s-logs helm-lint helm-template bento-build bento-containerize k8s-load-bento k8s-retrain-image k8s-retrain model-switch-blue model-switch-green model-switch-rollback obs-k8s-up obs-k8s-down obs-k8s-status obs-k8s-smoke obs-k8s-logs obs-k8s-port-forward obs-k8s-alert-test obs-k8s-lint obs-k8s-template lineage-up lineage-down lineage-status lineage-smoke lineage-port-forward lineage-lint
 
 help:
 	@echo "InvForge — available targets:"
@@ -86,6 +94,20 @@ help:
 	@echo "  model-switch-blue   Blue-green: point BentoML Service at blue"
 	@echo "  model-switch-green  Blue-green: point BentoML Service at green"
 	@echo "  model-switch-rollback Blue-green: revert active color to blue"
+	@echo "  --- PR-11B Advanced Observability (optional; local kind) ---"
+	@echo "  obs-k8s-up          Install observability stack (Prometheus/Grafana/Loki/Tempo/AlertManager)"
+	@echo "  obs-k8s-down        Uninstall observability stack"
+	@echo "  obs-k8s-status      Show observability pods/services"
+	@echo "  obs-k8s-port-forward Port-forward Grafana/Prometheus/Loki/Tempo/AlertManager"
+	@echo "  obs-k8s-smoke       Health-check the stack + verify a real metric"
+	@echo "  obs-k8s-alert-test  End-to-end alert loop (AI down -> webhook log)"
+	@echo "  obs-k8s-logs        Tail the alert webhook receiver logs"
+	@echo "  --- PR-11B Data Lineage (optional; local kind) ---"
+	@echo "  lineage-up          Install Marquez (OpenLineage server) + ephemeral DB"
+	@echo "  lineage-down        Uninstall Marquez"
+	@echo "  lineage-status      Show lineage pods/services"
+	@echo "  lineage-port-forward Port-forward Marquez UI + API"
+	@echo "  lineage-smoke       Emit a real OpenLineage event and verify in Marquez"
 
 docker-config:
 	@test -f $(COMPOSE_ENV) || cp app/.env.example $(COMPOSE_ENV)
@@ -172,7 +194,7 @@ model-rollback-confirm:
 
 # Full local synthetic demo chain (deterministic seed 42). Does not start
 # InvenTree, the API, or Streamlit — only generates local artifacts.
-demo-local: generate-data train-ml decision-intel mlops-loop
+demo-local: generate-data validate-data train-ml decision-intel mlops-loop dashboard-smoke
 	@echo ""
 	@echo "Local synthetic pipeline complete."
 	@echo "  Artifacts: artifacts/decision/ artifacts/mlops/"
@@ -201,7 +223,7 @@ reviewer-demo: demo-local
 
 # PR-06 AI Operations Dashboard (read-only artifact visualization).
 dashboard:
-	$(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true
+	PYTHONPATH=. $(UV) run --group dashboard streamlit run dashboard/app.py --server.headless true
 
 dashboard-smoke:
 	$(UV) run --group dashboard python -m dashboard.smoke
@@ -261,8 +283,13 @@ security-check:
 
 trivy-scan:
 	@command -v trivy >/dev/null 2>&1 || { echo "trivy not installed; see security/README.md"; exit 1; }
-	trivy fs . --exit-code 1 --severity CRITICAL --quiet
-	trivy fs . --exit-code 0 --severity HIGH --quiet
+	@# Skip local venv/ML caches (not in CI checkout). Scan repo sources + uv.lock.
+	trivy fs . --skip-dirs .venv --skip-dirs mlruns --skip-dirs .git \
+		--skip-dirs .pytest_cache --skip-dirs .ruff_cache --skip-dirs artifacts \
+		--exit-code 1 --severity CRITICAL --quiet
+	trivy fs . --skip-dirs .venv --skip-dirs mlruns --skip-dirs .git \
+		--skip-dirs .pytest_cache --skip-dirs .ruff_cache --skip-dirs artifacts \
+		--exit-code 0 --severity HIGH --quiet
 
 sbom:
 	@command -v syft >/dev/null 2>&1 || { echo "syft not installed; see security/README.md"; exit 1; }
@@ -407,3 +434,65 @@ model-switch-green:
 # Rollback the blue-green Service selector to the stable (blue) color.
 model-switch-rollback:
 	@bash deploy/k8s/scripts/model-switch.sh blue $(K8S_NAMESPACE) $(HELM_RELEASE)
+
+# ---------------------------------------------------------------------------
+# PR-11B — advanced observability (OPTIONAL profile; never part of k8s-up).
+# Separate namespace invforge-observability. InvenTree is never deployed here.
+# RAM: stop InvenTree Compose (make docker-down) before running. See
+# docs/runbooks/observability-startup.md.
+# ---------------------------------------------------------------------------
+obs-k8s-lint:
+	helm lint $(OBS_CHART)
+
+obs-k8s-template:
+	helm template $(OBS_RELEASE) $(OBS_CHART) -n $(OBS_NAMESPACE)
+
+obs-k8s-up:
+	@echo "NOTE: optional observability profile. Ensure InvenTree Compose is stopped (make docker-down)."
+	helm upgrade --install $(OBS_RELEASE) $(OBS_CHART) \
+		-n $(OBS_NAMESPACE) --create-namespace
+
+obs-k8s-down:
+	-helm uninstall $(OBS_RELEASE) -n $(OBS_NAMESPACE)
+	-kubectl delete namespace $(OBS_NAMESPACE) --ignore-not-found
+
+obs-k8s-status:
+	kubectl get pods,svc -n $(OBS_NAMESPACE)
+
+obs-k8s-port-forward:
+	@bash $(OBS_CHART)/scripts/port-forward.sh $(OBS_NAMESPACE)
+
+obs-k8s-smoke:
+	@bash $(OBS_CHART)/scripts/smoke.sh
+
+obs-k8s-alert-test:
+	@bash $(OBS_CHART)/scripts/alert-test.sh
+
+obs-k8s-logs:
+	kubectl logs -n $(OBS_NAMESPACE) -l app.kubernetes.io/component=alert-webhook-receiver --tail=100 -f
+
+# ---------------------------------------------------------------------------
+# PR-11B — data lineage with Marquez/OpenLineage (OPTIONAL; never part of k8s-up).
+# Separate namespace invforge-lineage. See docs/runbooks/lineage-inspection.md.
+# ---------------------------------------------------------------------------
+lineage-lint:
+	helm lint $(LINEAGE_CHART)
+
+lineage-up:
+	helm upgrade --install $(LINEAGE_RELEASE) $(LINEAGE_CHART) \
+		-n $(LINEAGE_NAMESPACE) --create-namespace
+
+lineage-down:
+	-helm uninstall $(LINEAGE_RELEASE) -n $(LINEAGE_NAMESPACE)
+	-kubectl delete namespace $(LINEAGE_NAMESPACE) --ignore-not-found
+
+lineage-status:
+	kubectl get pods,svc -n $(LINEAGE_NAMESPACE)
+
+lineage-port-forward:
+	@bash $(LINEAGE_CHART)/scripts/port-forward.sh $(LINEAGE_NAMESPACE)
+
+# Emits ONE real OpenLineage event via the verified retraining pipeline and
+# confirms Marquez recorded it. Requires `make lineage-port-forward` first.
+lineage-smoke:
+	@bash $(LINEAGE_CHART)/scripts/smoke.sh

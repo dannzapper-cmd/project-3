@@ -16,13 +16,13 @@
 | **Rol objetivo** | Applied AI / ML Engineer / MLOps / AI Solutions / Forward Deployed |
 | **Hardware local** | Laptop 8 GB RAM → Modo Local Lite + VM cloud puntual para cargas pesadas |
 | **Filosofía de costo** | Free tiers + deploy barato apagable; VM por horas; clusters caros solo documentados |
-| **Estado** | Diseño congelado. Siguiente paso = construir MVP de punta a punta. |
+| **Estado** | PR-11B merged. PR-12 = full QA/audit + minimal hardening. PR-13 = final packaging. |
 
 ### Leyenda de clasificación de tecnologías
 
 - **`[CORE]`** — Obligatorio en el MVP. Sin esto no hay proyecto.
 - **`[REC]`** — Recomendado. Entra después del MVP, antes de Senior Edition.
-- **`[SENIOR]`** — Senior Edition. **Implementado y corriendo**, no solo documentado.
+- **`[SENIOR]`** — Senior Edition. Implementado donde exista evidencia en repo/comandos; algunas piezas son opcionales, locales o manuales según ADR/runbook.
 - **`[DOC]`** — Solo documentación / ruta futura. No se implementa.
 - **`[NO]`** — Anti-scope. Explícitamente fuera. Overengineering para este contexto.
 
@@ -99,7 +99,7 @@ Cierre: número de impacto de negocio → *"reduje el costo simulado de inventar
 
 ## 8. Técnicas ML / forecasting
 
-- **`[CORE]`** LightGBM / XGBoost (modelo global principal); Prophet / StatsForecast / Nixtla (forecasting); Isolation Forest (anomaly detection); SHAP (explainability).
+- **`[CORE]`** LightGBM (modelo global principal); StatsForecast / Nixtla (forecasting); Croston/SBA para intermitente; Isolation Forest (anomaly detection); SHAP (explainability).
 - **`[CORE]`** **Croston / SBA** para items de demanda intermitente (clasificar items por ADI y CV², aplicar el método correcto a cada clase).
 - **`[CORE]`** **Prediction intervals** (StatsForecast nativo o MAPIE) — nunca solo predicción puntual.
 - **`[REC]`** Optuna (tuning); conformal prediction (intervalos con coverage garantizado); hierarchical forecasting con reconciliación (item ↔ categoría); walk-forward backtesting + test Diebold-Mariano (significancia estadística champion vs challenger).
@@ -134,7 +134,7 @@ El loop que convierte predicción en acción (operations research clásico, lo q
 
 - **`[CORE]`** Health checks; structured logging; metrics endpoint; Prometheus + Grafana (dashboard de sistema + modelo); métricas: latencia, errores, data freshness, drift status, retraining status, model version.
 - **`[REC]`** OpenTelemetry ligero (traces).
-- **`[SENIOR]`** **Grafana LGTM stack completo**: Loki (logs) + Grafana (viz) + Tempo (traces) + Mimir (métricas), unificado por OpenTelemetry Collector. Correlación cross-signal (de un spike de métrica → traza → logs). **Prometheus AlertManager** con reglas reales (ej. "drift > threshold por 2 chequeos → alerta a webhook/Slack"). Detección → alerta → acción.
+- **`[SENIOR]`** Observabilidad avanzada local: Prometheus + Grafana + Loki + Tempo + OTel Collector + AlertManager. En PR-11B las métricas/logs/alertas son reales; Tempo/OTel quedan como backends idle hasta instrumentar la API. Mimir queda excluido para este tamaño.
 
 ## 13. Ciberseguridad defensiva
 
@@ -147,7 +147,7 @@ Todo defensivo. Nada ofensivo, nada de hacking, nada de explotación.
 
 ## 14. Cloud / multi-cloud / Kubernetes
 
-Estrategia: **un cloud principal activo, dos perfiles documentados**.
+Estrategia: **un perfil cloud principal activation-ready (Cloud Run), dos perfiles documentados (AWS/Azure), sin recursos live por defecto**.
 
 - **`[CORE]`** Docker + Docker Compose (reproducible local).
 - **`[REC]`** Deploy principal real barato: Google Cloud Run (pricing por request, se apaga sin tráfico) o Render / Fly.io. PostgreSQL gestionado: Neon / Supabase / Railway (free tiers). Perfiles `/deploy/gcp`, `/deploy/aws`, `/deploy/azure` — cada uno con README, método de deploy, variables, comando de teardown y cost notes. Docker image única reutilizable.
@@ -156,7 +156,7 @@ Estrategia: **un cloud principal activo, dos perfiles documentados**.
 
 ## 15. Senior Edition (implementada, no solo documentada)
 
-Cuando alguien corre `make k8s-up`, levanta un cluster local con: AI Operations API, BentoML model server (deployment separado), CronJob de retraining, Feast Feature Server, ZenML runner, y el stack de observabilidad LGTM completo + AlertManager. Más: OpenLineage+Marquez corriendo, model signing verificado en el pipeline, blue-green model deployment, feature flags (Unleash), inference caching (Redis), graceful degradation, foundation models benchmarkeados, red-team de data poisoning demostrado, error analysis como entregable formal, resultados negativos documentados, y reproducibility checklist que de verdad funciona.
+Cuando alguien corre `make k8s-up`, levanta el cluster local kind de la AI Operations Layer y carga la imagen del AI API; `make k8s-deploy` instala el chart del AI API. Observabilidad (`obs-k8s-*`) y lineage (`lineage-*`) son perfiles opcionales separados. BentoML/blue-green están templated pero disabled hasta construir una imagen real; Redis, feature flags, red-team, foundation models y gates estrictos de Cosign quedan diferidos/futuros.
 
 ## 16. Qué NO debe hacerse — anti-scope `[NO]`
 
@@ -181,7 +181,7 @@ Cuando alguien corre `make k8s-up`, levanta un cluster local con: AI Operations 
 |---|---|---|
 | **PR-01** | Setup base | Docker Compose, InvenTree + PostgreSQL, estructura del repo, generador de datos sintéticos, skeleton de CI. |
 | **PR-02** | Data pipeline | Ingestion Service, Feast feature pipeline, validación Pandera/Great Expectations, setup DVC. |
-| **PR-03** | ML baseline | LightGBM/XGBoost + Prophet/StatsForecast, Croston/SBA para intermitente, SHAP, MLflow tracking, model card inicial. |
+| **PR-03** | ML baseline | LightGBM + StatsForecast, Croston/SBA para intermitente, SHAP, MLflow tracking, model card inicial. |
 | **PR-04** | Decision intelligence | Safety stock, EOQ, reorder point, prediction intervals, stockout risk, cost-aware forecasting (quantile loss). |
 | **PR-05** | MLOps loop | Evidently drift/data quality, model registry, champion/challenger, BentoML packaging. |
 | **PR-06** | AI Operations Dashboard | Forecast viz, stockout risk panel, what-if simulation, model status, recomendaciones de decisión. |
@@ -222,6 +222,11 @@ Ver sección 5. La clave: en 90 segundos el espectador ve **sistema empresarial 
 
 ## 20. Narrativa de entrevista
 
-> "Tomé InvenTree, un sistema de inventario open-source real, y construí encima una capa de AI Operations externa que no modifica el core. Añade demand forecasting con LightGBM y foundation models de series de tiempo, manejo de demanda intermitente con Croston/SBA, predicción de stockouts, y decision intelligence con safety stock, EOQ y reorder point optimizados con quantile loss porque los costos de faltante y sobrante son asimétricos — eso redujo el costo simulado de inventario en X%. Tiene un loop MLOps completo: feature store con Feast, tracking con MLflow 3, monitoreo con Evidently, retraining con ZenML. Todo observado con el stack LGTM de Grafana, asegurado con audit logs, risk scoring, anomaly detection y un ejercicio de red-team de data poisoning. El deploy principal está en Cloud Run, con perfiles para AWS y Azure y Kubernetes en Senior Edition, CI/CD con GitHub Actions, Trivy, SBOM y model signing. Cualquier pieza la puedo explicar porque la construí de verdad."
+La narrativa final de entrevista / portfolio es **propiedad de PR-13**. PR-12 solo deja guardrails factuales para que esa narrativa no sobreprometa:
 
-Diferenciador final: la mayoría sabe *qué herramientas existen*; muy pocos las conectan en un sistema coherente con criterio de producción y un número de impacto de negocio. Eso es lo que InvForge demuestra.
+- Datos y métricas de impacto: sintéticos, seed 42, no claims de ahorro real.
+- Cloud: perfiles activation-ready; no recursos live por defecto.
+- Kubernetes: local kind para la AI layer; observabilidad y lineage son perfiles opcionales.
+- Tracing: Tempo/OTel backends idle hasta instrumentar la API.
+- BentoML/blue-green: templated/disabled hasta construir una imagen real.
+- Futuro/diferido: foundation models, red-team data poisoning, Redis, auth/gates estrictos y producción cloud.

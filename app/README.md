@@ -16,7 +16,8 @@ This directory contains the **official InvenTree Docker Compose** setup used as 
 | `inventree-worker` | Background worker |
 | `inventree-proxy` | Caddy reverse proxy |
 
-Future InvForge AI sidecar services will be added in separate compose profiles or override files (PR-02+).
+InvForge AI sidecar services live outside this base compose file (for example in
+`api/`, `observability/`, and `deploy/`) so the InvenTree core stays unchanged.
 
 ## First-time setup
 

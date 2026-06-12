@@ -1,0 +1,21 @@
+apiVersion: v2
+name: invforge-observability
+description: |
+  InvForge advanced observability for the AI Operations Layer (PR-11B).
+  A single, self-contained, 8 GB-friendly chart: Prometheus, Grafana, Loki
+  (single-binary), Promtail, Tempo (single-binary), AlertManager + a local
+  webhook receiver, and an OTel Collector (OTLP receiver). OPTIONAL profile —
+  it is NEVER started by `make k8s-up`. InvenTree is never deployed here.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - invforge
+  - observability
+  - prometheus
+  - grafana
+  - loki
+  - tempo
+  - alertmanager
+maintainers:
+  - name: InvForge

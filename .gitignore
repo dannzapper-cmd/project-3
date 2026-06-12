@@ -9,9 +9,6 @@ build/
 .venv/
 .python-version
 
-# uv
-uv.lock
-
 # Environment and secrets
 .env
 *.pem
@@ -71,3 +68,7 @@ bentoml/
 # ZenML local stack metadata (PR-09; local SQLite default, never committed)
 .zenml/
 .zenml_local/
+
+# PR-12.6 local evidence logs (generated; keep SUMMARY/report markdown if curated)
+docs/evidence/pr12-6-local/
+docs/evidence/pr12-5-local/

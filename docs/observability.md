@@ -48,8 +48,9 @@ Local URL: `http://localhost:8001` (override the port with `INVFORGE_API_PORT`).
 curl http://localhost:8001/health
 ```
 
-Expected response shape (HTTP 200 when `ok`/`degraded`, HTTP 503 when
-`unavailable`):
+Expected response shape (local/CI: HTTP 200 when `ok`/`degraded`, HTTP 503 when
+`unavailable`; demo/cloud: HTTP 200 even when the payload status is
+`unavailable`, so provider probes stay green without local artifacts):
 
 ```json
 {
@@ -70,6 +71,8 @@ Expected response shape (HTTP 200 when `ok`/`degraded`, HTTP 503 when
 
 - `status` is `unavailable` when no artifacts are present, `degraded` when some
   are present, and `ok` when all are present.
+- In demo/cloud mode, inspect the JSON body; a 200 status alone does **not** prove
+  model/MLOps artifacts are present.
 - `drift_detected` is `true`/`false`/`null` (`null` = unknown).
 - `bentoml_packaged` is `true`/`false`/`null`.
 - `champion_challenger_decision` is one of `promote_challenger`,
@@ -198,3 +201,18 @@ value contains a path separator. Exits non-zero on any failure.
   pipeline state, not live InvenTree demand.
 - Prometheus retention is short (local TSDB) and Grafana credentials are
   local-only dev defaults.
+
+## 11. PR-11B — Kubernetes observability + lineage (optional)
+
+PR-11B adds an optional, in-cluster observability stack (Prometheus, Grafana,
+Loki, Promtail, Tempo, AlertManager, OTel Collector, local webhook receiver) and
+an optional Marquez/OpenLineage lineage profile for the AI layer on local kind.
+They are separate from this PR-07 Docker-Compose stack and from `make k8s-up`.
+
+- Targets: `make obs-k8s-up | obs-k8s-smoke | obs-k8s-alert-test` and
+  `make lineage-up | lineage-smoke` (and matching `*-down`).
+- Truth: metrics, logs, and alerts are real and validated; traces are deployed
+  as idle OTLP backends pending API instrumentation (deferred).
+- Docs: `docs/adr/003-pr11b-observability-lineage-scope.md`, and runbooks
+  `observability-startup.md`, `grafana-inspection.md`, `alertmanager-test.md`,
+  `otel-tracing.md`, `lineage-inspection.md`.

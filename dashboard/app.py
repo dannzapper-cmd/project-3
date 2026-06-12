@@ -19,6 +19,7 @@ from dashboard.auth import render_login_gate
 from dashboard.config import DashboardSettings
 from dashboard.loaders import (
     derive_overview_status,
+    derive_system_flow_steps,
     load_bentoml_build_summary,
     load_champion_challenger_comparison,
     load_decision_recommendations,
@@ -36,7 +37,7 @@ from dashboard.paths import (
     CMD_REVIEWER_DEMO,
     CMD_TRAIN_ML,
 )
-from dashboard.types import LoaderMissing, LoaderOk
+from dashboard.types import LoaderMissing, LoaderOk, LoaderResult
 
 st.set_page_config(
     page_title="InvForge AI Operations",
@@ -50,8 +51,9 @@ LIMITATIONS_LOCAL = [
     "real-world savings claims.",
     "MLflow, Evidently, and BentoML artifacts are **local** to this machine.",
     "This dashboard is **not** production monitoring, alerting, or serving.",
-    "Grafana and Prometheus are available locally via `make observability-*`.",
-    "Cloud deploy exposes a **read-only API + dashboard**; training stays local.",
+    "Grafana, Prometheus, and Marquez lineage are **optional local profiles** "
+    "— run separately via `make observability-up` or kind stacks.",
+    "kind Kubernetes profiles are **local evidence** — not managed GKE/EKS/AKS.",
 ]
 
 LIMITATIONS_CLOUD = [
@@ -281,6 +283,68 @@ def _render_security_posture(settings: DashboardSettings) -> None:
     st.table({"Control": [r[0] for r in rows], "Status": [r[1] for r in rows]})
 
 
+def _flow_status_badge(status: str) -> str:
+    icons = {
+        "ok": "🟢",
+        "missing": "🟠",
+        "optional": "🔵",
+        "companion": "⚪",
+    }
+    return icons.get(status, "⚪")
+
+
+def _render_pipeline_chain(
+    *,
+    synthetic: LoaderResult,
+    comparison: LoaderResult,
+    decision_summary: LoaderResult,
+    mlops_summary: LoaderResult,
+) -> None:
+    st.header("0. How InvForge Works")
+    st.markdown(
+        "This dashboard is **read-only proof** that backend pipelines already ran. "
+        f"`{CMD_DEMO_LOCAL}` executes the chain below (data → validate → train → "
+        "decision → MLOps → dashboard smoke). **This UI never triggers pipelines.**"
+    )
+
+    steps = derive_system_flow_steps(
+        synthetic=synthetic,
+        comparison=comparison,
+        decision_summary=decision_summary,
+        mlops_summary=mlops_summary,
+    )
+
+    st.subheader("Pipeline chain (from `make demo-local`)")
+    for step in steps:
+        if step["kind"] != "pipeline":
+            continue
+        col_a, col_b = st.columns([1, 4])
+        with col_a:
+            st.metric(
+                f"Step {step['step']}",
+                f"{_flow_status_badge(step['status'])} {step['status'].upper()}",
+            )
+        with col_b:
+            st.markdown(f"**{step['title']}** — `{step['command']}`")
+            st.caption(step["detail"])
+            st.code(step["artifact_path"], language=None)
+
+    st.subheader("Companion surfaces (run separately)")
+    for step in steps:
+        if step["kind"] != "companion":
+            continue
+        st.markdown(
+            f"- {_flow_status_badge(step['status'])} **{step['title']}** — "
+            f"`{step['command']}` · `{step['artifact_path']}` · _{step['detail']}_"
+        )
+
+    st.info(
+        "**Honest scope:** synthetic data by default · cloud demo uses fixture-backed "
+        "read-only surfaces · full pipeline runs locally · simulated cost metrics "
+        "are **not production ROI**."
+    )
+
+
 def main() -> None:
     settings = DashboardSettings.from_env()
 
@@ -325,6 +389,13 @@ def main() -> None:
     )
 
     _render_system_flow(settings)
+    with st.container(border=True):
+        _render_pipeline_chain(
+            synthetic=synthetic,
+            comparison=comparison,
+            decision_summary=decision_summary,
+            mlops_summary=mlops_summary,
+        )
 
     # --- Overview ---
     st.header("1. Overview")

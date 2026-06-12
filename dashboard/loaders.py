@@ -23,11 +23,16 @@ from dashboard.paths import (
     CMD_TRAIN_ML,
     DECISION_RECOMMENDATIONS,
     DECISION_SUMMARY,
+    DEFAULT_DECISION_DIR,
+    DEFAULT_MLOPS_DIR,
+    DEFAULT_PROCESSED_DIR,
     DEFAULT_SYNTHETIC_DIR,
     EVIDENTLY_DRIFT_JSON,
     EVIDENTLY_QUALITY_JSON,
+    MLRUNS_DIR,
     MLOPS_LOOP_SUMMARY,
     REGISTRY_SUMMARY,
+    RETRAINING_DIR,
     SYNTHETIC_MARKERS,
 )
 from dashboard.types import LoaderMissing, LoaderOk, LoaderResult
@@ -333,3 +338,111 @@ def derive_overview_status(
         "decision": _label(decision_summary),
         "mlops": _label(mlops_summary),
     }
+
+
+def _path_ready(path: Path) -> bool:
+    if path.is_file():
+        return True
+    if path.is_dir():
+        try:
+            return any(path.iterdir())
+        except OSError:
+            return False
+    return False
+
+
+def derive_system_flow_steps(
+    *,
+    synthetic: LoaderResult,
+    comparison: LoaderResult,
+    decision_summary: LoaderResult,
+    mlops_summary: LoaderResult,
+) -> list[dict[str, str]]:
+    """Build read-only pipeline step cards for the System Flow dashboard section."""
+
+    def _status(result: LoaderResult, path: Path) -> str:
+        if result["status"] == "ok":
+            return "ok"
+        if _path_ready(path):
+            return "ok"
+        return "missing"
+
+    pipeline: list[dict[str, str]] = [
+        {
+            "kind": "pipeline",
+            "step": "1",
+            "title": "Data source",
+            "command": CMD_GENERATE_DATA,
+            "detail": "Synthetic CSVs (seed 42) by default; optional InvenTree ingest.",
+            "artifact_path": str(DEFAULT_SYNTHETIC_DIR),
+            "status": _status(synthetic, DEFAULT_SYNTHETIC_DIR),
+        },
+        {
+            "kind": "pipeline",
+            "step": "2",
+            "title": "Data validation",
+            "command": 'make UV="uv" validate-data',
+            "detail": "Pandera schemas on synthetic/processed CSVs.",
+            "artifact_path": str(DEFAULT_PROCESSED_DIR),
+            "status": "ok" if _path_ready(DEFAULT_SYNTHETIC_DIR) else "missing",
+        },
+        {
+            "kind": "pipeline",
+            "step": "3",
+            "title": "Forecasting models",
+            "command": CMD_TRAIN_ML,
+            "detail": "LightGBM + StatsForecast + Croston/SBA; logs to MLflow.",
+            "artifact_path": str(MLRUNS_DIR),
+            "status": _status(comparison, MLRUNS_DIR),
+        },
+        {
+            "kind": "pipeline",
+            "step": "4",
+            "title": "Decision intelligence",
+            "command": CMD_DECISION_INTEL,
+            "detail": "Safety stock, ROP, EOQ, stockout risk from forecast quantiles.",
+            "artifact_path": str(DEFAULT_DECISION_DIR),
+            "status": _status(decision_summary, DEFAULT_DECISION_DIR),
+        },
+        {
+            "kind": "pipeline",
+            "step": "5",
+            "title": "MLOps loop",
+            "command": CMD_MLOPS_LOOP,
+            "detail": "Evidently drift, MLflow registry, champion/challenger, BentoML.",
+            "artifact_path": str(DEFAULT_MLOPS_DIR),
+            "status": _status(mlops_summary, DEFAULT_MLOPS_DIR),
+        },
+    ]
+
+    retraining_status = "ok" if _path_ready(RETRAINING_DIR) else "optional"
+    companions: list[dict[str, str]] = [
+        {
+            "kind": "companion",
+            "step": "6",
+            "title": "API health / metrics",
+            "command": 'make UV="uv" observability-api',
+            "detail": "FastAPI `/health` and `/metrics` summarize artifact presence.",
+            "artifact_path": "http://localhost:8001/health",
+            "status": "companion",
+        },
+        {
+            "kind": "companion",
+            "step": "7",
+            "title": "Observability",
+            "command": 'make UV="uv" observability-up',
+            "detail": "Local Prometheus + Grafana (Docker) or kind LGTM profile.",
+            "artifact_path": "observability/ · deploy/k8s/observability/",
+            "status": "companion",
+        },
+        {
+            "kind": "companion",
+            "step": "8",
+            "title": "Lineage",
+            "command": "make lineage-up && make lineage-smoke",
+            "detail": "OpenLineage → Marquez for retraining job `invforge.retraining`.",
+            "artifact_path": str(RETRAINING_DIR),
+            "status": retraining_status,
+        },
+    ]
+    return pipeline + companions

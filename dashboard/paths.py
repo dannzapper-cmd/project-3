@@ -56,3 +56,7 @@ CMD_DECISION_INTEL = 'make UV="uv" decision-intel'
 CMD_MLOPS_LOOP = 'make UV="uv" mlops-loop'
 CMD_DEMO_LOCAL = 'make UV="uv" demo-local'
 CMD_REVIEWER_DEMO = 'make UV="uv" reviewer-demo'
+
+MLRUNS_DIR = REPO_ROOT / "mlruns"
+RETRAINING_DIR = REPO_ROOT / "artifacts" / "retraining"
+DEFAULT_PROCESSED_DIR = REPO_ROOT / "data" / "processed"

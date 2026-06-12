@@ -138,8 +138,10 @@ baseline training behavior remains unchanged.
   beat the champion on the primary metric (`mae`) by the configured threshold,
   recording the previous champion as the rollback target. PR-03 baseline
   training behaviour is unchanged.
-- **PR-10 / PR-11 Senior Edition:** Model serving/deployment packaging,
-  Kubernetes (k3s/Helm), and foundation model benchmarks (Chronos-2/TimesFM) and
+- **PR-10 / PR-11 Senior Edition (done locally):** container deploy profiles,
+  local kind/Helm AI layer, and optional observability/lineage profiles. BentoML
+  serving is templated but disabled until a real image is built.
+- **Future benchmarks:** foundation model benchmarks (Chronos-2/TimesFM) and
   TFT/N-BEATS comparison.
 
 ## How to Reproduce

@@ -94,7 +94,8 @@ Trade-off: Calico adds memory overhead. On a tight 8 GB budget, keeping kindnet
 `.github/workflows/cosign-model-signing.yml` provides keyless image signing as
 **supply-chain groundwork**. It is `workflow_dispatch` only, never a CI gate, and
 needs a GHCR image + OIDC permissions to run. A verify-before-deploy admission
-gate is deferred to PR-11B. Do not rely on it for PR-11A validation.
+gate is deferred to future production hardening. Do not rely on it for PR-11A
+or PR-12 validation.
 
 ## Troubleshooting
 

@@ -1,0 +1,108 @@
+# InvForge advanced observability — default values (PR-11B).
+#
+# 8 GB-friendly: every component has explicit requests/limits (see ADR 003 and
+# docs/runbooks/observability-startup.md). Storage is EPHEMERAL (emptyDir) — this
+# is local/dev observability, not production. Access is via kubectl port-forward
+# (ClusterIP only). Images are pinned and pulled from public registries; on kind
+# they are cached after the first pull.
+#
+# Total RAM budget (requests ~0.85Gi, limits ~2.0Gi) is designed to fit on an
+# 8 GB laptop ALONGSIDE the AI API, WITHOUT InvenTree Compose running.
+
+namespace: invforge-observability
+
+# The AI Operations API target Prometheus scrapes (PR-11A AI layer).
+# Cross-namespace in-cluster DNS: <svc>.<ns>.svc.cluster.local
+aiApi:
+  namespace: invforge-ai
+  service: invforge-ai-api
+  port: 8001
+  # Prometheus job label — alert rules reference up{job="invforge-ai"}.
+  job: invforge-ai
+
+imagePullPolicy: IfNotPresent
+
+prometheus:
+  enabled: true
+  image: prom/prometheus:v2.54.1
+  port: 9090
+  retention: 2h
+  scrapeInterval: 15s
+  evaluationInterval: 15s
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 250m, memory: 512Mi }
+
+grafana:
+  enabled: true
+  image: grafana/grafana:11.2.0
+  port: 3000
+  # Local/dev credentials ONLY (mirrors the PR-07 compose stack). Anonymous
+  # viewer is enabled for a frictionless local demo. NOT for production.
+  adminUser: admin
+  adminPassword: admin  # pragma: allowlist secret - local/dev Grafana only
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 200m, memory: 256Mi }
+
+loki:
+  enabled: true
+  image: grafana/loki:2.9.8
+  port: 3100
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+promtail:
+  enabled: true
+  image: grafana/promtail:2.9.8
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+
+tempo:
+  # Tempo is deployed as an OTLP trace BACKEND. No traces are emitted yet (the
+  # AI API is not OTEL-instrumented — see ADR 003 / otel-tracing.md). It runs
+  # idle, ready to receive, which is correct and honest.
+  enabled: true
+  image: grafana/tempo:2.5.0
+  httpPort: 3200      # query/ready
+  otlpGrpcPort: 4317
+  otlpHttpPort: 4318
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 300m, memory: 512Mi }
+
+alertmanager:
+  enabled: true
+  image: prom/alertmanager:v0.27.0
+  port: 9093
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+
+# Local webhook receiver: closes the loop metric -> rule -> alert -> receiver.
+# A tiny stdlib Python HTTP server that logs the received alert JSON to stdout.
+# AlertManager posts to http://alert-webhook-receiver:5001/alert (in-cluster).
+webhookReceiver:
+  enabled: true
+  image: python:3.12-slim
+  port: 5001
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 64Mi }
+
+otelCollector:
+  # OTLP receiver only (4317 gRPC / 4318 HTTP), exporting traces to Tempo. It
+  # does NOT scrape Prometheus (no duplication). Idle until the API emits OTLP.
+  enabled: true
+  image: otel/opentelemetry-collector-contrib:0.107.0
+  otlpGrpcPort: 4317
+  otlpHttpPort: 4318
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+
+commonLabels:
+  app.kubernetes.io/part-of: invforge
+  invforge.io/layer: observability

@@ -40,7 +40,7 @@ Artifacts must not contain API keys, tokens, passwords, or environment variable 
 make security-audit    # generate all four artifacts (runs generate-data if needed)
 make security-smoke    # validate artifacts exist and match expected shape
 make security-check    # Bandit + pip-audit + detect-secrets (all must pass)
-make trivy-scan        # local Trivy FS scan (requires trivy CLI)
+make trivy-scan        # local Trivy FS scan (requires trivy CLI; skips .venv/mlruns)
 make sbom              # CycloneDX SBOM via syft (requires syft CLI)
 ```
 

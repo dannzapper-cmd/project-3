@@ -1,0 +1,158 @@
+{{- if .Values.webhookReceiver.enabled }}
+{{- /*
+Minimal local alert webhook receiver: a single-file stdlib Python HTTP server
+that logs every received AlertManager POST to stdout. This closes the loop
+metric -> rule -> alert -> receiver -> visible log (kubectl logs). No external
+service, no secrets, no persistence. In-cluster URL:
+  http://alert-webhook-receiver:{{ .Values.webhookReceiver.port }}/alert
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-webhook-receiver-app
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alert-webhook-receiver
+data:
+  receiver.py: |
+    """InvForge local alert webhook receiver (PR-11B). Logs alerts to stdout."""
+    import json
+    import os
+    from datetime import datetime, timezone
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    PORT = int(os.environ.get("PORT", "5001"))
+
+
+    def _now() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+
+    class Handler(BaseHTTPRequestHandler):
+        def _ok(self, payload: dict) -> None:
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # health endpoint
+            if self.path in ("/healthz", "/health", "/"):
+                self._ok({"status": "ok", "ts": _now()})
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw = self.rfile.read(length) if length else b""
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {"_raw": raw.decode(errors="replace")}
+            alerts = data.get("alerts", [])
+            summary = [
+                {
+                    "status": a.get("status"),
+                    "alertname": a.get("labels", {}).get("alertname"),
+                    "severity": a.get("labels", {}).get("severity"),
+                }
+                for a in alerts
+            ]
+            print(
+                json.dumps(
+                    {
+                        "event": "alert_received",
+                        "ts": _now(),
+                        "path": self.path,
+                        "num_alerts": len(alerts),
+                        "alerts": summary,
+                    }
+                ),
+                flush=True,
+            )
+            self._ok({"received": len(alerts)})
+
+        def log_message(self, *args) -> None:  # silence default access logging
+            return
+
+
+    if __name__ == "__main__":
+        print(json.dumps({"event": "receiver_start", "port": PORT, "ts": _now()}), flush=True)
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-webhook-receiver
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alert-webhook-receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: alert-webhook-receiver
+  template:
+    metadata:
+      labels:
+        {{- include "obs.labels" . | nindent 8 }}
+        app.kubernetes.io/component: alert-webhook-receiver
+      annotations:
+        checksum/config: {{ toYaml $.Values | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: receiver
+          image: {{ .Values.webhookReceiver.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["python", "/app/receiver.py"]
+          env:
+            - name: PORT
+              value: {{ .Values.webhookReceiver.port | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.webhookReceiver.port }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.webhookReceiver.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: app
+              mountPath: /app
+      volumes:
+        - name: app
+          configMap:
+            name: alert-webhook-receiver-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-webhook-receiver
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "obs.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alert-webhook-receiver
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: alert-webhook-receiver
+  ports:
+    - name: http
+      port: {{ .Values.webhookReceiver.port }}
+      targetPort: http
+{{- end }}

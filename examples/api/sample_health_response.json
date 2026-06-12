@@ -1,0 +1,14 @@
+{
+  "status": "ok",
+  "pr_stage": "PR-07",
+  "artifacts": {
+    "decision_summary": "ok",
+    "decision_recommendations": "ok",
+    "mlops_loop_summary": "ok",
+    "registry_summary": "ok",
+    "champion_challenger_comparison": "ok"
+  },
+  "drift_detected": false,
+  "bentoml_packaged": true,
+  "champion_challenger_decision": "keep_champion"
+}

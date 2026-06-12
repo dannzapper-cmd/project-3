@@ -47,6 +47,10 @@ mlops = [
 retraining = [
     "zenml[local]>=0.70.0,<0.95.0",
     "optuna>=3.6.0,<5.0.0",
+    # PR-11B: optional OpenLineage emission to a local Marquez (env-gated; the
+    # client is only imported when OPENLINEAGE_URL is set — see
+    # mlops/retraining/lineage.py).
+    "openlineage-python>=1.9.0,<2.0.0",
 ]
 dashboard = [
     "streamlit>=1.40.0",
