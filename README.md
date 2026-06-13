@@ -78,6 +78,22 @@ Choose your reviewer path:
 
 > Reviewer gate only — not production security. Unlocks synthetic read-only content.
 
+### Cloud Dashboard Evidence
+
+Captured from the **live Cloud Run dashboard** (2026-06-12). The cloud dashboard is
+**read-only**, uses **bundled synthetic fixtures**, and does not train models on cold
+start. Run the full deterministic ML/MLOps pipeline locally with
+`make reviewer-demo` and `make dashboard`. No public InvenTree, MLflow, ZenML, or admin
+surfaces.
+
+| Mission control & scenarios | Decision intelligence | MLOps status |
+|---|---|---|
+| ![InvForge cloud mission control](docs/evidence/screenshots/cloud-dashboard/01-cloud-mission-control-scenarios.png) | ![InvForge cloud decision intelligence](docs/evidence/screenshots/cloud-dashboard/03-cloud-decision-intelligence.png) | ![InvForge cloud MLOps status](docs/evidence/screenshots/cloud-dashboard/04-cloud-mlops-status.png) |
+
+Sample inputs (view-only YAML, API JSON, fixture SKUs):
+
+![InvForge cloud sample inputs](docs/evidence/screenshots/cloud-dashboard/02-cloud-sample-inputs.png)
+
 ### B. Live API Demo
 
 | | |
