@@ -108,7 +108,9 @@ def _render_missing(
     cloud_label: str = "Not bundled in cloud fixture",
 ) -> None:
     if settings.is_cloud_mode:
-        st.info(f"**{cloud_label}** — cloud mode uses committed synthetic fixtures only.")
+        st.info(
+            f"**{cloud_label}** — cloud mode uses committed synthetic fixtures only."
+        )
         st.caption(result["reason"])
         st.markdown(
             f"Regenerate locally: `{CMD_REVIEWER_DEMO}` then `make dashboard`."
@@ -359,7 +361,6 @@ def _render_quick_links(settings: DashboardSettings) -> None:
         guide = settings.github_blob_url(settings.reviewer_guide_path)
         evidence = settings.github_blob_url(settings.evidence_doc_path)
         scenario = settings.github_blob_url("examples/demo-scenario/scenario.yaml")
-        sample_api = settings.github_blob_url("examples/api/forecast_request.json")
 
         if api_base:
             c1, c2 = st.columns(2)
@@ -675,7 +676,8 @@ def main() -> None:
         syn = synthetic["data"]
         if settings.is_cloud_mode:
             st.success(
-                f"Synthetic fixture data ready ({len(syn['files_present'])} CSV markers)."
+                "Synthetic fixture data ready "
+                f"({len(syn['files_present'])} CSV markers)."
             )
         else:
             st.info(
