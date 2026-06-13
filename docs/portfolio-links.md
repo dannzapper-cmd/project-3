@@ -14,6 +14,7 @@ from this repo** — consume these links/copy when updating it.
 | **Username** | `reviewer` |
 | **Password** | `invforge-demo` |
 | **Note** | Read-only synthetic demo · guided scenarios · view-only sample inputs · reviewer gate only · not production auth |
+| **Evidence screenshots** | [`docs/evidence/screenshots/cloud-dashboard/`](https://github.com/dannzapper-cmd/project-3/tree/main/docs/evidence/screenshots/cloud-dashboard) |
 
 ## Local Demo
 

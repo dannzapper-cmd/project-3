@@ -54,6 +54,9 @@ evaluate InvForge quickly — browser-only, full local, or advanced profiles.
 Cloud content comes from **bundled synthetic fixtures** (~116 KB, seed 42) baked
 into the container — intentionally truncated for cost and security.
 
+**Evidence screenshots:** [`docs/evidence/screenshots/cloud-dashboard/`](../evidence/screenshots/cloud-dashboard/)
+(captured from live Cloud Run, 2026-06-12).
+
 ### Live read-only API
 
 | | |

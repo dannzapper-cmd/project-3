@@ -30,6 +30,7 @@ The dashboard can deploy read-only to Cloud Run via `Dockerfile.dashboard`:
 - **Guided demo scenarios** and **Sample Inputs** (view-only) at the top of the cloud dashboard
 - Reviewer login gate: `INVFORGE_DEMO_AUTH_ENABLED`, `INVFORGE_DEMO_USER`, `INVFORGE_DEMO_PASSWORD`
 - Live URL: see README **Try InvForge** section
+- Cloud evidence screenshots: `docs/evidence/screenshots/cloud-dashboard/`
 
 Local mode unchanged — reads workspace artifacts from `make reviewer-demo`.
 Sample inputs in cloud are **view-only**; no upload or pipeline triggers from the dashboard.

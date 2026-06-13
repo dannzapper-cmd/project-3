@@ -8,6 +8,7 @@ local ML pipeline.
 - **Scope:** dashboard visualization only — no models, no MLflow, no training.
 - **Includes:** MLOps summaries (incl. BentoML build summary), guided scenario metadata, sample input YAML/JSON.
 - **Not production data.** Simulated backtest diagnostics only.
+- **Evidence:** live cloud screenshots in `docs/evidence/screenshots/cloud-dashboard/`.
 
 Regenerate locally (optional):
 
