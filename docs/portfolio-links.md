@@ -13,7 +13,7 @@ from this repo** — consume these links/copy when updating it.
 | **URL** | https://invforge-dashboard-demo-lwcelvo7ya-uc.a.run.app |
 | **Username** | `reviewer` |
 | **Password** | `invforge-demo` |
-| **Note** | Read-only synthetic demo · reviewer gate only · not production auth |
+| **Note** | Read-only synthetic demo · guided scenarios · view-only sample inputs · reviewer gate only · not production auth |
 
 ## Local Demo
 

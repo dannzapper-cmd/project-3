@@ -49,4 +49,7 @@ def test_fixtures_exist_in_repo() -> None:
     root = Path(__file__).resolve().parents[1] / "demo_fixtures"
     assert (root / "decision" / "decision_summary.json").is_file()
     assert (root / "mlops" / "mlops_loop_summary.json").is_file()
+    assert (root / "mlops" / "bentoml" / "build_summary.json").is_file()
+    assert (root / "demo_scenarios.json").is_file()
+    assert (root / "samples" / "scenario.yaml").is_file()
     assert (root / "synthetic" / "output" / "parts.csv").is_file()
